@@ -7,54 +7,20 @@
 
 double f1(const Vector* x);
 double f2(const Vector* x);
+Vector f3(const Vector* x);
 
 int main(int argc, char* argv[])
 {
-    double m_init_vals[] = { 2.0, 1.0, 1.0, 2.0 };
-    const size_t m       = 2;
-    const size_t n       = 2;
-    Matrix M             = Matrix_new_vals(m, n, m_init_vals);
+    double x_vals[] = { 1.0, 2.0, 0.0, 3.0 };
+    Vector x        = Vector_new_vals(4, x_vals);
 
-    double v_init_vals[] = { 2.0, 3.0 };
-    Vector v             = Vector_new_vals(n, v_init_vals);
-    Vector target        = Vector_new(0, 0.0);
+    Matrix jacobi = Matrix_new(0, 0, 0.0);
 
-    int status = Matrix_Vector_dot(&target, &M, &v);
+    int status = Matrix_jacobi(&jacobi, &x, f3);
 
-    if (status == MATRIX_MATH_SUCCESS)
-    {
-        Vector_print(&target);
-        printf("\n");
-    }
-    else if (status == MATRIX_BASIC_ERROR)
-    {
-        perror("There has been an error during calculation\n");
-    }
-    else if (status == MATRIX_DIMENSION_ERROR)
-    {
-        perror("There was a dimension mismatch\n");
-    }
-
-    Matrix M_inv = Matrix_new(0, 0, 0.0);
-
-    status = Matrix_inverse(&M_inv, &M);
-
-    if (status == MATRIX_MATH_SUCCESS)
-    {
-        Matrix_print(&M_inv);
-    }
-    else if (status == MATRIX_BASIC_ERROR)
-    {
-        perror("There has been an error during calculation\n");
-    }
-    else if (status == MATRIX_DIMENSION_ERROR)
-    {
-        perror("There was a dimension mismatch\n");
-    }
-
-    Vector_free(&target);
-    Matrix_free(&M);
-    Matrix_free(&M_inv);
+    printf("Jacobi Matrix: \n");
+    Matrix_print(&jacobi);
+    Matrix_free(&jacobi);
 }
 
 double f1(const Vector* x)
@@ -73,4 +39,18 @@ double f2(const Vector* x)
 
     // -(2x_1^2 - 2x_1x_2 + x_2^2 + x_3^2 - 2x_1 - 4x_3)
     return -2 * (a * a - a * b - a - 2 * c) - b * b - c * c;
+}
+
+Vector f3(const Vector* x)
+{
+    if (x->dim != 4)
+    {
+        perror("Dimension error in f3\n");
+    }
+    Vector f_x    = Vector_new(3, 0.0);
+    f_x.values[0] = x->values[0] * x->values[1] * exp(x->values[2]);
+    f_x.values[1] = x->values[1] * x->values[2] * x->values[3];
+    f_x.values[2] = x->values[3];
+
+    return f_x;
 }

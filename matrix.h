@@ -1,12 +1,14 @@
 #ifndef MATRIX_H
 #define MATRIX_H
 
-#include "vector.h"
 #define MATRIX_MATH_SUCCESS 10
 #define MATRIX_BASIC_SUCCESS 20
 #define MATRIX_DIMENSION_ERROR -10
 #define MATRIX_BASIC_ERROR -20
+#define MATRIX_MATH_ERROR -30
+#define MATRIX_EPS 10e-4
 
+#include "vector.h"
 #include <stddef.h>
 typedef struct
 {
@@ -42,5 +44,9 @@ void Matrix_print(const Matrix* M);
 void Matrix_scale(Matrix* target, const double lambda);
 int Matrix_inverse(Matrix* target, const Matrix* M);
 int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v);
+int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2);
+int Matrix_jacobi(Matrix* target,
+                  const Vector* x,
+                  Vector (*f)(const Vector* x));
 
 #endif // MATRIX_H
