@@ -361,3 +361,43 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
     }
     return MATRIX_MATH_SUCCESS;
 }
+
+int Matrix_jacobi(Matrix* target, const Vector* x, Vector (*f)(const Vector* x))
+{
+    if (target->m != 0 || target->n != 0)
+    {
+        Matrix_free(target);
+    }
+    const Vector f_x = f(x);
+    const size_t M   = f_x.dim;
+    const size_t N   = x->dim;
+    Vector f_x_eps   = Vector_new(M, 0.0);
+    *target          = Matrix_new(M, N, 0.0);
+    Vector x_eps     = Vector_new(0, 0.0);
+    Vector_copy(&x_eps, x);
+    double fn_x, fn_x_eps;
+
+    int status = 0;
+    for (size_t m = 0; m < M; m++)
+    {
+
+        for (size_t n = 0; n < N; n++)
+        {
+            x_eps.values[n] += MATRIX_EPS;
+            f_x_eps = f(&x_eps);
+            x_eps.values[n] -= MATRIX_EPS;
+            fn_x     = f_x.values[m];
+            fn_x_eps = f_x_eps.values[m];
+
+            status +=
+              Matrix_set_at(target, m, n, (fn_x_eps - fn_x) / MATRIX_EPS);
+        }
+    }
+    if (status != M * N * MATRIX_BASIC_SUCCESS)
+    {
+        perror("Index error occured during Matrix_jacobi()\n");
+        return MATRIX_BASIC_ERROR;
+    }
+
+    return MATRIX_MATH_SUCCESS;
+}
