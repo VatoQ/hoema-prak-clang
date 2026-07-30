@@ -162,6 +162,19 @@ void Matrix_scale(Matrix* target, const double lambda)
 
 int _reverse_n_n_matrix(Matrix* target, const Matrix* M)
 {
+    *target = Matrix_zeros_like(M);
+    for (size_t m = 0; m < M->m; m++)
+    {
+        double lambda;
+        Matrix_get_at(&lambda, M, m, m);
+        double* row_vals = target->values + m * M->n;
+        Vector row       = Vector_new_vals(M->m, row_vals);
+        Vector_scale(&row, 1.0 / lambda);
+        memcpy(target->values + m * M->m, row.values, n * sizeof(double));
+        for (size_t n = m + 1; n < M->n; n++)
+        {
+        }
+    }
 
     return MATRIX_MATH_SUCCESS;
 }
@@ -171,6 +184,11 @@ int Matrix_inverse(Matrix* target, const Matrix* M)
     if (target->m != 0 && target->n != 0)
     {
         Matrix_free(target);
+    }
+    if (M->m != M->n)
+    {
+        perror("Cannot invert matrix where n!=m\n");
+        return MATRIX_DIMENSION_ERROR;
     }
     if (M->m == 2 && M->n == 2)
     {
