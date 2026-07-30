@@ -170,7 +170,7 @@ int _reverse_n_n_matrix(Matrix* target, const Matrix* M)
         double* row_vals = target->values + m * M->n;
         Vector row       = Vector_new_vals(M->m, row_vals);
         Vector_scale(&row, 1.0 / lambda);
-        memcpy(target->values + m * M->m, row.values, n * sizeof(double));
+        memcpy(target->values + m * M->m, row.values, M->n * sizeof(double));
         for (size_t n = m + 1; n < M->n; n++)
         {
         }
