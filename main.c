@@ -10,51 +10,31 @@ double f2(const Vector* x);
 
 int main(int argc, char* argv[])
 {
-    double m_init_vals[] = { 2.0, 1.0, 1.0, 2.0 };
-    const size_t m       = 2;
-    const size_t n       = 2;
-    Matrix M             = Matrix_new_vals(m, n, m_init_vals);
-
-    double v_init_vals[] = { 2.0, 3.0 };
-    Vector v             = Vector_new_vals(n, v_init_vals);
-    Vector target        = Vector_new(0, 0.0);
-
-    int status = Matrix_Vector_dot(&target, &M, &v);
-
-    if (status == MATRIX_MATH_SUCCESS)
-    {
-        Vector_print(&target);
-        printf("\n");
-    }
-    else if (status == MATRIX_BASIC_ERROR)
-    {
-        perror("There has been an error during calculation\n");
-    }
-    else if (status == MATRIX_DIMENSION_ERROR)
-    {
-        perror("There was a dimension mismatch\n");
-    }
+    // symmetric matrix
+    double m_vals[] = {
+        2.0, -0.5, 0.1, -0.5, 1.0, -0.1, 0.1, -0.1, 2.0,
+    };
+    Matrix M = Matrix_new_vals(3, 3, m_vals);
+    printf("M:\n");
+    Matrix_print(&M);
 
     Matrix M_inv = Matrix_new(0, 0, 0.0);
+    Matrix_inverse(&M_inv, &M);
 
-    status = Matrix_inverse(&M_inv, &M);
+    printf("\nM_inv: \n");
+    Matrix_print(&M_inv);
 
-    if (status == MATRIX_MATH_SUCCESS)
-    {
-        Matrix_print(&M_inv);
-    }
-    else if (status == MATRIX_BASIC_ERROR)
-    {
-        perror("There has been an error during calculation\n");
-    }
-    else if (status == MATRIX_DIMENSION_ERROR)
-    {
-        perror("There was a dimension mismatch\n");
-    }
+    Matrix res = Matrix_new(0, 0, 0.0);
 
-    Vector_free(&target);
-    Matrix_free(&M);
+    Matrix_Matrix_dot(&res, &M, &M_inv);
+
+    printf("\nM @ M_inv: \n");
+    Matrix_print(&res);
+
     Matrix_free(&M_inv);
+    Matrix_free(&M);
+
+    return EXIT_SUCCESS;
 }
 
 double f1(const Vector* x)
