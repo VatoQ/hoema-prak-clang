@@ -7,34 +7,20 @@
 
 double f1(const Vector* x);
 double f2(const Vector* x);
+Vector f3(const Vector* x);
 
 int main(int argc, char* argv[])
 {
-    // symmetric matrix
-    double m_vals[] = {
-        2.0, -0.5, 0.1, -0.5, 1.0, -0.1, 0.1, -0.1, 2.0,
-    };
-    Matrix M = Matrix_new_vals(3, 3, m_vals);
-    printf("M:\n");
-    Matrix_print(&M);
+    double x_vals[] = { 1.0, 2.0, 0.0, 3.0 };
+    Vector x        = Vector_new_vals(4, x_vals);
 
-    Matrix M_inv = Matrix_new(0, 0, 0.0);
-    Matrix_inverse(&M_inv, &M);
+    Matrix jacobi = Matrix_new(0, 0, 0.0);
 
-    printf("\nM_inv: \n");
-    Matrix_print(&M_inv);
+    int status = Matrix_jacobi(&jacobi, &x, f3);
 
-    Matrix res = Matrix_new(0, 0, 0.0);
-
-    Matrix_Matrix_dot(&res, &M, &M_inv);
-
-    printf("\nM @ M_inv: \n");
-    Matrix_print(&res);
-
-    Matrix_free(&M_inv);
-    Matrix_free(&M);
-
-    return EXIT_SUCCESS;
+    printf("Jacobi Matrix: \n");
+    Matrix_print(&jacobi);
+    Matrix_free(&jacobi);
 }
 
 double f1(const Vector* x)
@@ -53,4 +39,18 @@ double f2(const Vector* x)
 
     // -(2x_1^2 - 2x_1x_2 + x_2^2 + x_3^2 - 2x_1 - 4x_3)
     return -2 * (a * a - a * b - a - 2 * c) - b * b - c * c;
+}
+
+Vector f3(const Vector* x)
+{
+    if (x->dim != 4)
+    {
+        perror("Dimension error in f3\n");
+    }
+    Vector f_x    = Vector_new(3, 0.0);
+    f_x.values[0] = x->values[0] * x->values[1] * exp(x->values[2]);
+    f_x.values[1] = x->values[1] * x->values[2] * x->values[3];
+    f_x.values[2] = x->values[3];
+
+    return f_x;
 }
