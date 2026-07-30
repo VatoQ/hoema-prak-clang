@@ -160,21 +160,97 @@ void Matrix_scale(Matrix* target, const double lambda)
     }
 }
 
-int _reverse_n_n_matrix(Matrix* target, const Matrix* M)
+int _invert_n_n_matrix(Matrix* target, const Matrix* M)
 {
-    *target = Matrix_zeros_like(M);
+    // TODO: Error code handling
+    Matrix M_copy;
+    Matrix_copy(&M_copy, M);
+    Vector ones = Vector_new(M->n, 1);
+    *target     = Matrix_diag(&ones);
+    // Phase one, make lower right triangle
     for (size_t m = 0; m < M->m; m++)
     {
         double lambda;
-        Matrix_get_at(&lambda, M, m, m);
-        double* row_vals = target->values + m * M->n;
-        Vector row       = Vector_new_vals(M->m, row_vals);
-        Vector_scale(&row, 1.0 / lambda);
-        memcpy(target->values + m * M->m, row.values, M->n * sizeof(double));
+        Matrix_get_at(&lambda, &M_copy, m, m);
+        lambda                  = 1.0 / lambda;
+        double* row_vals        = M_copy.values + m * M->n;
+        double* row_target_vals = target->values + m * M->n;
+        Vector row              = Vector_new_vals(M->n, row_vals);
+        Vector row_target       = Vector_new_vals(M->n, row_target_vals);
+        Vector_scale(&row, lambda);
+        Vector_scale(&row_target, lambda);
+        memcpy(
+          target->values + m * M->n, row_target.values, M->n * sizeof(double));
+        memcpy(M_copy.values + m * M->n, row.values, M->n * sizeof(double));
+
         for (size_t n = m + 1; n < M->n; n++)
         {
+            Matrix_get_at(&lambda, &M_copy, n, m);
+            Vector_scale(&row, lambda);
+            Vector_scale(&row_target, lambda);
+
+            row_vals            = M_copy.values + n * M->n;
+            row_target_vals     = target->values + n * M->n;
+            Vector row_n        = Vector_new_vals(M->n, row_vals);
+            Vector row_target_n = Vector_new_vals(M->n, row_target_vals);
+
+            Vector_sub(&row_target_n, &row_target);
+            Vector_sub(&row_n, &row);
+
+            memcpy(target->values + n * M->n,
+                   row_target_n.values,
+                   M->n * sizeof(double));
+            memcpy(
+              M_copy.values + n * M->n, row_n.values, M->n * sizeof(double));
+
+            Vector_scale(&row, 1 / lambda);
+            Vector_scale(&row_target, 1 / lambda);
+
+            Vector_free(&row_n);
+            Vector_free(&row_target_n);
+        }
+
+        Vector_free(&row);
+        Vector_free(&row_target);
+    }
+
+    // Phase two, fill upper right triangle.
+    for (long m = M->m - 1; m >= 0; m--)
+    {
+        double lambda;
+        double* row_vals        = M_copy.values + m * M->n;
+        double* row_target_vals = target->values + m * M->n;
+        Vector row              = Vector_new_vals(M->n, row_vals);
+        Vector row_target       = Vector_new_vals(M->n, row_target_vals);
+        memcpy(
+          target->values + m * M->n, row_target.values, M->n * sizeof(double));
+        memcpy(M_copy.values + m * M->n, row.values, M->n * sizeof(double));
+        for (long n = m - 1; n >= 0; n--)
+        {
+            Matrix_get_at(&lambda, &M_copy, n, m);
+            Vector_scale(&row, lambda);
+            Vector_scale(&row_target, lambda);
+
+            row_vals            = M_copy.values + n * M->n;
+            row_target_vals     = target->values + n * M->n;
+            Vector row_n        = Vector_new_vals(M->n, row_vals);
+            Vector row_target_n = Vector_new_vals(M->n, row_target_vals);
+
+            Vector_sub(&row_target_n, &row_target);
+            Vector_sub(&row_n, &row);
+
+            memcpy(target->values + n * M->n,
+                   row_target_n.values,
+                   M->n * sizeof(double));
+            memcpy(
+              M_copy.values + n * M->n, row_n.values, M->n * sizeof(double));
+
+            Vector_scale(&row, 1 / lambda);
+            Vector_scale(&row_target, 1 / lambda);
         }
     }
+
+    Matrix_free(&M_copy);
 
     return MATRIX_MATH_SUCCESS;
 }
@@ -211,9 +287,13 @@ int Matrix_inverse(Matrix* target, const Matrix* M)
         return MATRIX_MATH_SUCCESS;
     }
 
-    // TODO: Other inverse methods
+    int status = _invert_n_n_matrix(target, M);
+    if (status != MATRIX_MATH_SUCCESS)
+    {
+        return MATRIX_MATH_ERROR;
+    }
 
-    return MATRIX_DIMENSION_ERROR;
+    return MATRIX_MATH_SUCCESS;
 }
 
 int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
@@ -246,5 +326,38 @@ int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
     }
     Vector_copy(target, &tmp);
 
+    return MATRIX_MATH_SUCCESS;
+}
+
+int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
+{
+    if (M1->n != M2->m)
+    {
+        return MATRIX_DIMENSION_ERROR;
+    }
+
+    if (target->m != 0 && target->n != 0)
+    {
+        Matrix_free(target);
+    }
+
+    *target = Matrix_new(M1->m, M2->n, 0);
+
+    for (size_t m = 0; m < target->m; m++)
+    {
+        for (size_t n = 0; n < target->n; n++)
+        {
+            double sum = 0.0;
+
+            for (size_t o = 0; o < M1->n; o++)
+            {
+                double a, b;
+                Matrix_get_at(&a, M1, m, o);
+                Matrix_get_at(&b, M2, o, n);
+                sum += a * b;
+            }
+            Matrix_set_at(target, m, n, sum);
+        }
+    }
     return MATRIX_MATH_SUCCESS;
 }
