@@ -9,14 +9,10 @@
 
 Vector Vector_new(const size_t dim, const double init_val)
 {
-    double* vals = calloc(dim, sizeof(double));
-    Vector v     = { vals, dim };
-    if (fabs(init_val - EPS) > EPS)
+    Vector v = Vector_zeros(dim);
+    for (size_t i = 0; i < dim; i++)
     {
-        for (size_t i = 0; i < dim; i++)
-        {
-            v.values[i] = init_val;
-        }
+        v.values[i] = init_val;
     }
     return v;
 }
@@ -51,14 +47,52 @@ void Vector_copy(Vector* target, const Vector* v)
     target->dim = v->dim;
 }
 
+Vector Vector_zeros_like(const Vector* v)
+{
+    Vector res;
+    const size_t dim = v->dim;
+    res.values       = calloc(dim, sizeof(double));
+    res.dim          = dim;
+    return res;
+}
+
+Vector Vector_zeros(const size_t dim)
+{
+    Vector res;
+    res.values = calloc(dim, sizeof(double));
+    res.dim    = dim;
+    return res;
+}
+
+Vector Vector_ones(const size_t dim)
+{
+    return Vector_new(dim, 1.0);
+}
+
 double Vector_at(const Vector* v, const size_t index)
 {
     return v->values[index];
 }
 
-void Vector_set_item(Vector* v, const size_t index, const double val)
+int Vector_get_at(double* target, const Vector* v, const size_t index)
 {
+    if (index >= v->dim)
+    {
+        return VECTOR_DIMENSION_ERROR;
+    }
+    *target = v->values[index];
+
+    return VECTOR_BASIC_SUCCESS;
+}
+
+int Vector_set_item(Vector* v, const size_t index, const double val)
+{
+    if (index >= v->dim)
+    {
+        return VECTOR_DIMENSION_ERROR;
+    }
     v->values[index] = val;
+    return VECTOR_BASIC_SUCCESS;
 }
 
 size_t Vector_dim(const Vector* v)
@@ -172,11 +206,9 @@ int Vector_gradient_maximize(Vector* target,
                              double (*f)(const Vector*),
                              double stepsize)
 {
-    // printf("\tEnter maximize...\n");
 
     Vector grad = Vector_new(0, 0.0);
 
-    // printf("\tInit vars...\n");
     Vector_gradient(&grad, x, f);
     double norm_grad = Vector_norm(&grad);
     Vector grad_tmp  = Vector_new_copy(&grad);
@@ -188,42 +220,16 @@ int Vector_gradient_maximize(Vector* target,
     bool once_error    = false;
     once_error |= add_status;
     double current_f_of_x = f(&test_step);
-    // printf("\tInit complete.\n");
-
-    // printf("\t grad init: ");
-    // Vector_print(&grad);
-    // printf(", test_step: ");
-    // Vector_print(&test_step);
-    // printf("\n");
 
     int count = 0;
     while (count < MAX_STEP && norm_grad >= GRAD_EPS)
     {
-        // printf("\t\tIteration %d\n", count);
-        // printf("\t\tCurrent x: ");
-        // Vector_print(x);
-        // printf("current grad: ");
-        // Vector_print(&grad);
-        // printf("\n");
         int a = 0;
         while (current_f_of_x < last_f_of_x)
         {
-            // printf(
-            //   "\t\t\tcurrent_f_of_x = %f, last_f_of_x = %f, stepsize = %f\n",
-            //   current_f_of_x,
-            //   last_f_of_x,
-            //   stepsize);
-            // printf("\t\t\ttest_step: ");
-            // Vector_print(&test_step);
             stepsize *= 0.5;
             Vector_copy(&grad, &grad_tmp);
             Vector_scale(&grad, stepsize);
-            // printf(", grad: ");
-            // Vector_print(&grad);
-            // printf(", stepsize: %f, cur_f: %f, last_f: %f\n",
-            //        stepsize,
-            //        current_f_of_x,
-            //        last_f_of_x);
             Vector_copy(&test_step, x);
 
             once_error |= Vector_add(&test_step, &grad);
@@ -237,7 +243,6 @@ int Vector_gradient_maximize(Vector* target,
 
         if (current_f_of_x >= last_f_of_x)
         {
-            // printf("\t\tcase bigger \n");
             once_error |= Vector_add(&test_step, &grad);
             double longer_f_of_x = f(&test_step);
             if (longer_f_of_x > current_f_of_x)
@@ -253,7 +258,6 @@ int Vector_gradient_maximize(Vector* target,
         }
 
         Vector_copy(x, &test_step);
-        // printf("\n");
         last_f_of_x = current_f_of_x;
         Vector_gradient(&grad, x, f);
         Vector_norm(&grad);
@@ -261,14 +265,6 @@ int Vector_gradient_maximize(Vector* target,
         Vector_scale(&grad, stepsize);
         once_error |= Vector_add(&test_step, &grad);
         current_f_of_x = f(&test_step);
-        // printf("\t\tIter end: -----------\n");
-        // printf("\t\tx: ");
-        // Vector_print(x);
-        // printf(", test_step: ");
-        // Vector_print(&test_step);
-        // printf(", grad: ");
-        // Vector_print(&grad);
-        // printf("\n");
 
         if (once_error)
         {
