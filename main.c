@@ -1,26 +1,38 @@
+#include "logging.h"
 #include "matrix.h"
 #include "vector.h"
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <stdlib.h>
-
-double f1(const Vector* x);
-double f2(const Vector* x);
-Vector f3(const Vector* x);
 
 int main(int argc, char* argv[])
 {
-    double x_vals[] = { 1.0, 2.0, 0.0, 3.0 };
-    Vector x        = Vector_new_vals(4, x_vals);
+    Log_set_log_mode(MATH_LOG_STDERR);
+    double vals1[] = { 1.0,  -0.25, 0.01, -0.2, -0.25, 1.2,  0.05, 0.12,
+                       0.01, 0.05,  0.45, 0.23, -0.2,  0.12, 0.23, 1.0 };
+    double vals2[] = { -0.23, 0.5,   -0.22, -0.07, 0.5,   0.921, 0.111, 0.236,
+                       -0.22, 0.111, 3.1,   0.512, -0.07, 0.236, 0.512, 4.5 };
 
-    Matrix jacobi = Matrix_new(0, 0, 0.0);
+    Matrix M1 = Matrix_new_vals(4, 4, vals1);
+    Matrix M2 = Matrix_new_vals(4, 4, vals2);
 
-    int status = Matrix_jacobi(&jacobi, &x, f3);
+    Matrix M3 = Matrix_new(0, 0, 0);
 
-    printf("Jacobi Matrix: \n");
-    Matrix_print(&jacobi);
-    Matrix_free(&jacobi);
+    int status = Matrix_Matrix_dot_jordan(&M3, &M1, &M2);
+
+    Matrix_print(&M1);
+    printf("@\n");
+    Matrix_print(&M2);
+    printf("=\n");
+    Matrix_print(&M3);
+
+    Matrix M3_inv = Matrix_new(0, 0, 0.0);
+    Matrix_inverse(&M3_inv, &M3);
+
+    printf("Inverse matrix: \n");
+    Matrix_print(&M3_inv);
+
+    return 0;
 }
 
 double f1(const Vector* x)

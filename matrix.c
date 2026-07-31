@@ -1,4 +1,5 @@
 #include "matrix.h"
+#include "logging.h"
 #include "vector.h"
 #include <math.h>
 #include <stddef.h>
@@ -8,18 +9,33 @@
 
 Matrix Matrix_new(const size_t m, const size_t n, const double init_val)
 {
-    double* vals = calloc(m * n, sizeof(double));
-    if (fabs(init_val) > EPS)
+    Matrix res = { 0 };
+    if (m != 0 && n != 0)
     {
-        for (size_t i = 0; i < m * n; i++)
+        double* vals = calloc(m * n, sizeof(double));
+        if (!vals)
         {
-            vals[i] = init_val;
+            Log_log("Error allocating memory in Matrix_new()", LOG_ERROR);
+            return (Matrix){ 0 };
         }
+        if (fabs(init_val) > EPS)
+        {
+            for (size_t i = 0; i < m * n; i++)
+            {
+                vals[i] = init_val;
+            }
+        }
+        res.m      = m;
+        res.n      = n;
+        res.values = vals;
+        char msg[64];
+        snprintf(msg,
+                 sizeof(msg),
+                 "New matrix constructed with m = %ld, n = %ld",
+                 m,
+                 n);
+        Log_log(msg, LOG_INFO);
     }
-    Matrix res;
-    res.m      = m;
-    res.n      = n;
-    res.values = vals;
     return res;
 }
 
@@ -27,14 +43,7 @@ Matrix Matrix_new_vals(const size_t m, const size_t n, const double* init_vals)
 {
     Matrix M;
     M.values = calloc(m * n, sizeof(double));
-    // memcpy(M.values, init_vals, m * n * sizeof(double));
-    for (size_t i = 0; i < m * n; i++)
-    {
-
-        M.values[i] = init_vals[i];
-        // printf("val %ld: %f\n", i, M.values[i]);
-    }
-
+    memcpy(M.values, init_vals, m * n * sizeof(double));
     M.m = m;
     M.n = n;
     return M;
@@ -57,10 +66,11 @@ void _diag_helper(Matrix* M, const size_t n, const double* val)
     {
         status += Matrix_set_at(M, i, i, val[i]);
     }
-    if (status != MATRIX_BASIC_SUCCESS * n)
+    if (status != MATRIX_SUCCESS * n)
     {
-        perror("ERROR: An unknown error has occured at "
-               "Matrix_diag()\nReplacing M with zeros\n");
+        Log_log("An unknown error has occured at "
+                "Matrix_diag()\nReplacing M with zeros",
+                LOG_ERROR);
         Matrix tmp = Matrix_zeros_like(M);
         Matrix_free(M);
         *M = tmp;
@@ -91,8 +101,9 @@ Matrix Matrix_diag_val(const size_t n, const double val)
 
 void Matrix_copy(Matrix* target, const Matrix* M)
 {
-    if (target->m != 0 || target->n != 0)
+    if (!Matrix_is_empty(target))
     {
+        Log_log("Non empty Matrix deallocated in Matrix_copy()", LOG_WARNING);
         Matrix_free(target);
     }
     target->values = calloc(M->m * M->n, sizeof(double));
@@ -105,12 +116,13 @@ int Matrix_set_at(Matrix* M, const size_t m, const size_t n, const double value)
 {
     if (m >= M->m || n >= M->n)
     {
+        Log_log("Index out of range in Matrix_set_at()!", LOG_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
     const size_t index = m * M->n + n;
     M->values[index]   = value;
 
-    return MATRIX_BASIC_SUCCESS;
+    return MATRIX_SUCCESS;
 }
 
 int Matrix_get_at(double* target,
@@ -120,12 +132,13 @@ int Matrix_get_at(double* target,
 {
     if (m >= M->m || n >= M->n)
     {
+        Log_log("Index out of range in Matrix_get_at()!", LOG_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
 
     const size_t index = m * M->n + n;
     *target            = M->values[index];
-    return MATRIX_BASIC_SUCCESS;
+    return MATRIX_SUCCESS;
 }
 
 void Matrix_free(Matrix* M)
@@ -133,6 +146,12 @@ void Matrix_free(Matrix* M)
     free(M->values);
     M->values = NULL;
     M->m = 0, M->n = 0;
+}
+
+int Matrix_is_empty(const Matrix* M)
+{
+    // return (M->m == 0 || M->n == 0);
+    return ((M->values == NULL) || (M->m == 0 && M->n == 0));
 }
 
 void Matrix_print(const Matrix* M)
@@ -149,8 +168,39 @@ void Matrix_print(const Matrix* M)
         }
         printf("\n");
     }
+    if (status != MATRIX_SUCCESS * m * n)
+    {
+        Log_log("An unknown problem at Matrix_print", LOG_WARNING);
+    }
 }
 
+int Matrix_add(Matrix* target, const Matrix* M)
+{
+    if (target->m != M->m || target->n != M->n)
+    {
+        Log_log("Index out of range in Matrix_add()!", LOG_ERROR);
+        return MATRIX_DIMENSION_ERROR;
+    }
+    for (size_t n = 0; n < M->m * M->n; n++)
+    {
+        target->values[n] += M->values[n];
+    }
+    return MATRIX_SUCCESS;
+}
+
+int Matrix_sub(Matrix* target, const Matrix* M)
+{
+    if (target->m != M->m || target->n != M->n)
+    {
+        Log_log("Index out of range in Matrix_sub()!", LOG_ERROR);
+        return MATRIX_DIMENSION_ERROR;
+    }
+    for (size_t n = 0; n < M->m * M->n; n++)
+    {
+        target->values[n] -= M->values[n];
+    }
+    return MATRIX_SUCCESS;
+}
 void Matrix_scale(Matrix* target, const double lambda)
 {
     const size_t N = target->m * target->n;
@@ -163,7 +213,7 @@ void Matrix_scale(Matrix* target, const double lambda)
 int _invert_n_n_matrix(Matrix* target, const Matrix* M)
 {
     // TODO: Error code handling
-    Matrix M_copy;
+    Matrix M_copy = Matrix_new(0, 0, 0.0);
     Matrix_copy(&M_copy, M);
     Vector ones = Vector_new(M->n, 1);
     *target     = Matrix_diag(&ones);
@@ -252,18 +302,20 @@ int _invert_n_n_matrix(Matrix* target, const Matrix* M)
 
     Matrix_free(&M_copy);
 
-    return MATRIX_MATH_SUCCESS;
+    return MATRIX_SUCCESS;
 }
 
 int Matrix_inverse(Matrix* target, const Matrix* M)
 {
-    if (target->m != 0 && target->n != 0)
+    if (!Matrix_is_empty(target))
     {
+        Log_log("Non empty Matrix deallocated in Matrix_inverse()",
+                LOG_WARNING);
         Matrix_free(target);
     }
     if (M->m != M->n)
     {
-        perror("Cannot invert matrix where n!=m\n");
+        Log_log("Cannot invert matrix where n!=m", LOG_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
     if (M->m == 2 && M->n == 2)
@@ -274,7 +326,7 @@ int Matrix_inverse(Matrix* target, const Matrix* M)
         status += Matrix_get_at(&b, M, 0, 1);
         status += Matrix_get_at(&c, M, 1, 0);
         status += Matrix_get_at(&d, M, 1, 1);
-        if (status != MATRIX_BASIC_SUCCESS * 4)
+        if (status != MATRIX_SUCCESS * 4)
         {
             return MATRIX_DIMENSION_ERROR;
         }
@@ -284,22 +336,24 @@ int Matrix_inverse(Matrix* target, const Matrix* M)
         Matrix tmp = Matrix_new_vals(M->m, M->n, init_vals);
         Matrix_scale(&tmp, scalar);
         Matrix_copy(target, &tmp);
-        return MATRIX_MATH_SUCCESS;
+        return MATRIX_SUCCESS;
     }
 
     int status = _invert_n_n_matrix(target, M);
-    if (status != MATRIX_MATH_SUCCESS)
+    if (status != MATRIX_SUCCESS)
     {
+        Log_log("Unknown math error in Matrix_inverse()", LOG_ERROR);
         return MATRIX_MATH_ERROR;
     }
 
-    return MATRIX_MATH_SUCCESS;
+    return MATRIX_SUCCESS;
 }
 
 int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
 {
     if (M->m != v->dim)
     {
+        Log_log("Index out of range in Matrix_Vector_dot()", LOG_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
     const size_t DIM = M->m;
@@ -320,28 +374,33 @@ int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
         Vector_set_item(&tmp, d, sum);
     }
 
-    if (checksum != DIM * N * MATRIX_BASIC_SUCCESS)
+    if (checksum != DIM * N * MATRIX_SUCCESS)
     {
+        Log_log("Unknown error in Matrix_Vector_dot()", LOG_ERROR);
         return MATRIX_BASIC_ERROR;
     }
     Vector_copy(target, &tmp);
 
-    return MATRIX_MATH_SUCCESS;
+    return MATRIX_SUCCESS;
 }
 
 int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
 {
     if (M1->n != M2->m)
     {
+        Log_log("Index out of range in Matrix_Matrix_dot()", LOG_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
 
-    if (target->m != 0 && target->n != 0)
+    if (!Matrix_is_empty(target))
     {
+        Log_log("Non empty Matrix deallocated in Matrix_Matrix_dot()",
+                LOG_WARNING);
         Matrix_free(target);
     }
 
-    *target = Matrix_new(M1->m, M2->n, 0);
+    *target    = Matrix_new(M1->m, M2->n, 0);
+    int status = 0;
 
     for (size_t m = 0; m < target->m; m++)
     {
@@ -352,20 +411,26 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
             for (size_t o = 0; o < M1->n; o++)
             {
                 double a, b;
-                Matrix_get_at(&a, M1, m, o);
-                Matrix_get_at(&b, M2, o, n);
+                status += Matrix_get_at(&a, M1, m, o);
+                status += Matrix_get_at(&b, M2, o, n);
                 sum += a * b;
             }
             Matrix_set_at(target, m, n, sum);
         }
     }
-    return MATRIX_MATH_SUCCESS;
+    if (status != target->m * M1->n * 2 * MATRIX_SUCCESS)
+    {
+        Log_log("Unknown error in Matrix_Matrix_dot()", LOG_ERROR);
+        return MATRIX_BASIC_ERROR;
+    }
+    return MATRIX_SUCCESS;
 }
 
 int Matrix_jacobi(Matrix* target, const Vector* x, Vector (*f)(const Vector* x))
 {
-    if (target->m != 0 || target->n != 0)
+    if (!Matrix_is_empty(target))
     {
+        Log_log("Non empty Matrix deallocated in Matrix_jacobi()", LOG_WARNING);
         Matrix_free(target);
     }
     const Vector f_x = f(x);
@@ -393,11 +458,39 @@ int Matrix_jacobi(Matrix* target, const Vector* x, Vector (*f)(const Vector* x))
               Matrix_set_at(target, m, n, (fn_x_eps - fn_x) / MATRIX_EPS);
         }
     }
-    if (status != M * N * MATRIX_BASIC_SUCCESS)
+    if (status != M * N * MATRIX_SUCCESS)
     {
-        perror("Index error occured during Matrix_jacobi()\n");
+        Log_log("Index error occured during Matrix_jacobi()", LOG_ERROR);
         return MATRIX_BASIC_ERROR;
     }
 
-    return MATRIX_MATH_SUCCESS;
+    return MATRIX_SUCCESS;
+}
+
+int Matrix_Matrix_dot_jordan(Matrix* target, const Matrix* M1, const Matrix* M2)
+{
+    if (!Matrix_is_empty(target))
+    {
+        Log_log("Non empty Matrix deallocated in Matrix_Matrix_dot_jordan()",
+                LOG_WARNING);
+        Matrix_free(target);
+    }
+    if (M1->m != M1->n || M2->m != M2->n || M1->m != M2->m)
+    {
+        Log_log("Jordan multiplication requires symmetrical matrices",
+                LOG_ERROR);
+        return MATRIX_DIMENSION_ERROR;
+    }
+    *target   = Matrix_zeros_like(M1);
+    Matrix AB = Matrix_new(0, 0, 0.0);
+    Matrix BA = Matrix_new(0, 0, 0.0);
+    Matrix_Matrix_dot(&AB, M1, M2);
+    Matrix_Matrix_dot(&BA, M2, M1);
+    Matrix_scale(&AB, 0.5);
+    Matrix_scale(&BA, 0.5);
+    Matrix_add(&AB, &BA);
+    Matrix_add(target, &AB);
+    Matrix_free(&AB);
+    Matrix_free(&BA);
+    return MATRIX_SUCCESS;
 }
