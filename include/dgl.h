@@ -20,9 +20,7 @@ typedef struct
 typedef struct
 {
     int dgl_type;
-
     Vector (*f_dgl_system)(const Vector* y, double x);
-
     double (*f_dgl_nth_order)(const Vector* y, double x);
 
 } DGL;

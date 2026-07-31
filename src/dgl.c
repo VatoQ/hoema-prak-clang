@@ -1,4 +1,4 @@
-#include "dgl.h"
+#include "../include/dgl.h"
 
 // TODO: implement
 int derivatives(DGL_Result* target, const DGL* self, const Vector* y, double x)
