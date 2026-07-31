@@ -43,8 +43,11 @@ Depending on the features used it may look like the following:
 
 ```fish
     gcc -O3 -march=native -ffast-math \
-    main.c vector.c matrix.c logging.c \
+    src/main.c src/vector.c src/matrix.c src/logging.c \
     -o main -lm
+
+
+
 ```
 Keep in mind that every feature uses the logging feature, 
 so every build must include `logging.c`
@@ -55,8 +58,13 @@ You can also use the small build script `launch.sh`, included in the repository:
 
 ```fish
 #!/bin/env fish
-gcc -O3 -march=native -ffast-math main.c vector.c matrix.c logging.c -o main -lm
+gcc -O3 -march=native -ffast-math \ 
+    -Iinclude \
+    src/main.c src/vector.c src/matrix.c src/logging.c \
+    -o main -lm
+
 time ./main
+
 ```
 
 Run with 

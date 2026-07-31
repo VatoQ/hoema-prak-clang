@@ -1,6 +1,6 @@
-#include "matrix.h"
-#include "logging.h"
-#include "vector.h"
+#include "../include/matrix.h"
+#include "../include/logging.h"
+#include "../include/vector.h"
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
