@@ -10,15 +10,52 @@ toolkit with a clear design philosophy:
 
 **Simple, explicit, predictable code — built from first principles.**
 
-The library provides:
+## Planned Features
 - [x] matrix multiplication (including Jordan product)
 - [x] matrix inversion for arbitrary n×n matrices
 - [x] a minimal logging system
-- [x] a small unit‑testing setup using Acutest
+- [ ] a small unit‑testing setup using Acutest
 - [ ] Differential equations
 - [ ] Fourier transformations (DFT, FFT)
 - [ ] Stochastics (Monte Carlo simulations, random sampling)
 
+
+
+
+# Build instructions
+
+## Requirements
+- GCC or Clang
+- POSIX-compatible shell (Fish, Bash, Zsh, etc.)
+- Standard math library (`libm`)
+
+## Building the project
+A minimal build can be done directly from the command line.
+
+Depending on the features used it may look like the following:
+
+```fish
+    gcc -O3 -march=native -ffast-math \
+    main.c vector.c matrix.c logging.c \
+    -o main -lm
+```
+Keep in mind that every feature uses the logging feature, 
+so every build must include `logging.c`
+
+## Using the provided build script
+
+You can also use the small build script `launch.sh`, included in the repository:
+
+```fish
+#!/bin/env fish
+gcc -O3 -march=native -ffast-math main.c vector.c matrix.c logging.c -o main -lm
+time ./main
+```
+
+Run with 
+```fish
+./launch.sh
+```
 
 
 
