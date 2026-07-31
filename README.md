@@ -1,3 +1,27 @@
+# Matrix, Vector and Numerical Mathematics Library in Pure C
+
+This repository contains a lightweight, self‑contained implementation
+of matrix and vector operations written entirely in **ISO C**, 
+without C++ classes, templates, operator overloading, or other 
+modern abstractions. The project began as a personal exploration 
+while working through exercises from the HöMa 2 Praktikum at 
+FH Aachen, but it quickly grew into a standalone numerical 
+toolkit with a clear design philosophy:
+
+**Simple, explicit, predictable code — built from first principles.**
+
+The library provides:
+- [x] matrix multiplication (including Jordan product)
+- [x] matrix inversion for arbitrary n×n matrices
+- [x] a minimal logging system
+- [x] a small unit‑testing setup using Acutest
+- [ ] Differential equations
+- [ ] Fourier transformations (DFT, FFT)
+- [ ] Stochastics (Monte Carlo simulations, random sampling)
+
+
+
+
 # License & Usage
 
 
@@ -34,4 +58,14 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+
+
+
+## Third‑Party Components
+
+This project includes the header-only testing framework Acutest  
+(&copy; 2013–2021, Acutest contributors), distributed under the MIT License.
+The original license text is preserved in acutest.h.
+
+
 
