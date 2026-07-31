@@ -1,12 +1,58 @@
 #ifndef MATRIX_H
 #define MATRIX_H
 
-#define MATRIX_MATH_SUCCESS 10
-#define MATRIX_BASIC_SUCCESS 20
-#define MATRIX_DIMENSION_ERROR -10
-#define MATRIX_BASIC_ERROR -20
-#define MATRIX_MATH_ERROR -30
-#define MATRIX_EPS 10e-4
+////////////////////////////////////////////////////////////
+//~- -------------------------------------------------- -~//
+//~-      Matrix Library - Design and Memory Model      -~//
+//~- -------------------------------------------------- -~//
+////////////////////////////////////////////////////////////
+/*
+ * Memory Model:
+ * -------------
+ * - All constructors (Matrix_new, Matrix_diag, etc.) allocate new memory.
+ * - All math functions treat `target` as an output container. If `target` is
+ *   non-empty, it will be freed and reallocated internally.
+ * - Users never need to pre-size `target` for math functions.
+ *     - Note: It is strongly recommended to always initialize
+ *       new matrices using a constructor. Even if they are empty.
+ *          - Example: `Matrix new_empty_matrix = Matrix_new(0,0,0.0);`
+ *       Non constructed Matrices may lead to undefined behaviour.
+ * - Users must call Matrix_free() on any matrix they no longer need.
+ *
+ * Error Handling:
+ * ---------------
+ * - All functions return a MatrixStatus code.
+ * - MATRIX_SUCCESS (0) indicates success.
+ * - Non-zero codes indicate dimension errors or numerical errors.
+ *
+ * Empty Matrix:
+ * -------------
+ * - A matrix is considered empty if (values == NULL) or (m == 0) or (n == 0).
+ * - Empty matrices are safe to pass as `target`: they will be allocated.
+ *
+ *
+ */
+
+////////////////////////////////
+//~- ---------------------- -~//
+//~-      STATUS CODES      -~//
+//~- ---------------------- -~//
+////////////////////////////////
+
+// #define MATRIX_MATH_SUCCESS 10
+// #define MATRIX_BASIC_SUCCESS 20
+// #define MATRIX_DIMENSION_ERROR -10
+// #define MATRIX_BASIC_ERROR -20
+// #define MATRIX_MATH_ERROR -30
+#define MATRIX_EPS 1e-4
+
+typedef enum
+{
+    MATRIX_SUCCESS         = 0,
+    MATRIX_DIMENSION_ERROR = 1,
+    MATRIX_MATH_ERROR      = 2,
+    MATRIX_BASIC_ERROR     = 3,
+} MatrixStatus;
 
 #include "vector.h"
 #include <stddef.h>
@@ -105,6 +151,7 @@ int Matrix_get_at(double* target,
                   const Matrix* M,
                   const size_t m,
                   const size_t n);
+int Matrix_is_empty(const Matrix* M);
 /**
  * @brief Deallocate data within `M`. Sets `m` and `n` to `0`.
  *
@@ -124,6 +171,22 @@ void Matrix_print(const Matrix* M);
 //~- ------------------------- -~//
 ///////////////////////////////////
 
+/**
+ * @brief Add `M` to `target`. Equivalent to `target += M`.
+ *
+ * @param `target` Matrix where the sum is stored.
+ * @param `M` Addend.
+ * @return `MATRIX_DIMENSION_ERROR` or `MATRIX_MATH_SUCCESS`
+ */
+int Matrix_add(Matrix* target, const Matrix* M);
+/**
+ * @brief Subtract `M` from `target`. Equivalent to `target -= M`.
+ *
+ * @param `target` Matrix where the difference is stored.
+ * @param `M` Subtrahend.
+ * @return `MATRIX_DIMENSION_ERROR` or `MATRIX_MATH_SUCCESS`
+ */
+int Matrix_sub(Matrix* target, const Matrix* M);
 /**
  * @brief Scale `target` by `lambda`.
  *
@@ -171,5 +234,18 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2);
 int Matrix_jacobi(Matrix* target,
                   const Vector* x,
                   Vector (*f)(const Vector* x));
+
+/**
+ * @brief Symmetrizes the product of two symmetric matrices. Used to turn
+ * symmetric matrices into a ring. Results in \[target=0.5*(M1*M2 + M2*M1)\]
+ *
+ * @param target Target matrix, jordan product is stored here.
+ * @param M1 First matrix.
+ * @param M2 Second matrix.
+ * @return `MATRIX_DIMENSION_ERROR` or `MATRIX_MATH_SUCCESS`
+ */
+int Matrix_Matrix_dot_jordan(Matrix* target,
+                             const Matrix* M1,
+                             const Matrix* M2);
 
 #endif // MATRIX_H
