@@ -1,4 +1,5 @@
 #include "vector.h"
+#include "logging.h"
 #include <assert.h>
 #include <math.h>
 #include <stdbool.h>
@@ -40,6 +41,7 @@ void Vector_copy(Vector* target, const Vector* v)
 {
     if (target->dim != 0)
     {
+        Log_log("Non empty Vector deallocated in Vector_copy", LOG_WARNING);
         Vector_free(target);
     }
     target->values = calloc(v->dim, sizeof(double));
@@ -78,6 +80,7 @@ int Vector_get_at(double* target, const Vector* v, const size_t index)
 {
     if (index >= v->dim)
     {
+        Log_log("Dimension error in Vector_get_at()", LOG_ERROR);
         return VECTOR_DIMENSION_ERROR;
     }
     *target = v->values[index];
@@ -89,6 +92,7 @@ int Vector_set_item(Vector* v, const size_t index, const double val)
 {
     if (index >= v->dim)
     {
+        Log_log("Dimension error in Vector_set_item()", LOG_ERROR);
         return VECTOR_DIMENSION_ERROR;
     }
     v->values[index] = val;
@@ -133,6 +137,7 @@ int Vector_add(Vector* target, const Vector* v)
 {
     if (Vector_get_dim(target) != Vector_get_dim(v))
     {
+        Log_log("Dimension error in Vector_add()", LOG_ERROR);
         return VECTOR_DIMENSION_ERROR;
     }
 
@@ -149,6 +154,7 @@ int Vector_sub(Vector* target, const Vector* v)
 {
     if (Vector_get_dim(target) != Vector_get_dim(v))
     {
+        Log_log("Dimension error in Vector_sub()", LOG_ERROR);
         return VECTOR_DIMENSION_ERROR;
     }
 
@@ -183,6 +189,8 @@ int Vector_gradient(Vector* grad, Vector* x, double (*f)(const Vector*))
 {
     if (Vector_get_dim(grad) != 0)
     {
+        Log_log("Non empty Vector deallocated in Vector_gradient()",
+                LOG_WARNING);
         Vector_free(grad);
     }
 
@@ -268,13 +276,16 @@ int Vector_gradient_maximize(Vector* target,
 
         if (once_error)
         {
-            perror("A dimension error happened in Vector_gradient_maximize\n");
+            Log_log("A dimension error happened in Vector_gradient_maximize",
+                    LOG_ERROR);
             return VECTOR_DIMENSION_ERROR;
         }
         count++;
     }
     if (target->dim != 0)
     {
+        Log_log("Non empty Vector deallocated in Vector_maximize()",
+                LOG_WARNING);
         Vector_free(target);
     }
 

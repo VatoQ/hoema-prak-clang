@@ -25,6 +25,13 @@ int main(int argc, char* argv[])
     Matrix_print(&M2);
     printf("=\n");
     Matrix_print(&M3);
+
+    Matrix M3_inv = Matrix_new(0, 0, 0.0);
+    Matrix_inverse(&M3_inv, &M3);
+
+    printf("Inverse matrix: \n");
+    Matrix_print(&M3_inv);
+
     return 0;
 }
 
