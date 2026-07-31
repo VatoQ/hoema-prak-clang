@@ -101,8 +101,9 @@ Matrix Matrix_diag_val(const size_t n, const double val)
 
 void Matrix_copy(Matrix* target, const Matrix* M)
 {
-    if (Matrix_is_empty(target))
+    if (!Matrix_is_empty(target))
     {
+        Log_log("Non empty Matrix deallocated in Matrix_copy()", LOG_WARNING);
         Matrix_free(target);
     }
     target->values = calloc(M->m * M->n, sizeof(double));
@@ -149,6 +150,7 @@ void Matrix_free(Matrix* M)
 
 int Matrix_is_empty(const Matrix* M)
 {
+    // return (M->m == 0 || M->n == 0);
     return ((M->values == NULL) || (M->m == 0 && M->n == 0));
 }
 
@@ -211,7 +213,7 @@ void Matrix_scale(Matrix* target, const double lambda)
 int _invert_n_n_matrix(Matrix* target, const Matrix* M)
 {
     // TODO: Error code handling
-    Matrix M_copy;
+    Matrix M_copy = Matrix_new(0, 0, 0.0);
     Matrix_copy(&M_copy, M);
     Vector ones = Vector_new(M->n, 1);
     *target     = Matrix_diag(&ones);
@@ -305,8 +307,10 @@ int _invert_n_n_matrix(Matrix* target, const Matrix* M)
 
 int Matrix_inverse(Matrix* target, const Matrix* M)
 {
-    if (Matrix_is_empty(target))
+    if (!Matrix_is_empty(target))
     {
+        Log_log("Non empty Matrix deallocated in Matrix_inverse()",
+                LOG_WARNING);
         Matrix_free(target);
     }
     if (M->m != M->n)
@@ -388,8 +392,10 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
         return MATRIX_DIMENSION_ERROR;
     }
 
-    if (Matrix_is_empty(target))
+    if (!Matrix_is_empty(target))
     {
+        Log_log("Non empty Matrix deallocated in Matrix_Matrix_dot()",
+                LOG_WARNING);
         Matrix_free(target);
     }
 
@@ -422,8 +428,9 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
 
 int Matrix_jacobi(Matrix* target, const Vector* x, Vector (*f)(const Vector* x))
 {
-    if (Matrix_is_empty(target))
+    if (!Matrix_is_empty(target))
     {
+        Log_log("Non empty Matrix deallocated in Matrix_jacobi()", LOG_WARNING);
         Matrix_free(target);
     }
     const Vector f_x = f(x);
@@ -462,8 +469,10 @@ int Matrix_jacobi(Matrix* target, const Vector* x, Vector (*f)(const Vector* x))
 
 int Matrix_Matrix_dot_jordan(Matrix* target, const Matrix* M1, const Matrix* M2)
 {
-    if (Matrix_is_empty(target))
+    if (!Matrix_is_empty(target))
     {
+        Log_log("Non empty Matrix deallocated in Matrix_Matrix_dot_jordan()",
+                LOG_WARNING);
         Matrix_free(target);
     }
     if (M1->m != M1->n || M2->m != M2->n || M1->m != M2->m)
