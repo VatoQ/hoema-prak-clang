@@ -27,14 +27,7 @@ Matrix Matrix_new_vals(const size_t m, const size_t n, const double* init_vals)
 {
     Matrix M;
     M.values = calloc(m * n, sizeof(double));
-    // memcpy(M.values, init_vals, m * n * sizeof(double));
-    for (size_t i = 0; i < m * n; i++)
-    {
-
-        M.values[i] = init_vals[i];
-        // printf("val %ld: %f\n", i, M.values[i]);
-    }
-
+    memcpy(M.values, init_vals, m * n * sizeof(double));
     M.m = m;
     M.n = n;
     return M;
@@ -341,7 +334,8 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
         Matrix_free(target);
     }
 
-    *target = Matrix_new(M1->m, M2->n, 0);
+    *target    = Matrix_new(M1->m, M2->n, 0);
+    int status = 0;
 
     for (size_t m = 0; m < target->m; m++)
     {
@@ -352,12 +346,16 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
             for (size_t o = 0; o < M1->n; o++)
             {
                 double a, b;
-                Matrix_get_at(&a, M1, m, o);
-                Matrix_get_at(&b, M2, o, n);
+                status += Matrix_get_at(&a, M1, m, o);
+                status += Matrix_get_at(&b, M2, o, n);
                 sum += a * b;
             }
             Matrix_set_at(target, m, n, sum);
         }
+    }
+    if (status != target->m * M1->n * 2 * MATRIX_BASIC_SUCCESS)
+    {
+        return MATRIX_BASIC_ERROR;
     }
     return MATRIX_MATH_SUCCESS;
 }

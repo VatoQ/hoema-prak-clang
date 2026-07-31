@@ -95,7 +95,7 @@ int Vector_set_item(Vector* v, const size_t index, const double val)
     return VECTOR_BASIC_SUCCESS;
 }
 
-size_t Vector_dim(const Vector* v)
+size_t Vector_get_dim(const Vector* v)
 {
     return v->dim;
 }
@@ -131,7 +131,7 @@ double Vector_norm(const Vector* v)
 
 int Vector_add(Vector* target, const Vector* v)
 {
-    if (Vector_dim(target) != Vector_dim(v))
+    if (Vector_get_dim(target) != Vector_get_dim(v))
     {
         return VECTOR_DIMENSION_ERROR;
     }
@@ -147,7 +147,7 @@ int Vector_add(Vector* target, const Vector* v)
 
 int Vector_sub(Vector* target, const Vector* v)
 {
-    if (Vector_dim(target) != Vector_dim(v))
+    if (Vector_get_dim(target) != Vector_get_dim(v))
     {
         return VECTOR_DIMENSION_ERROR;
     }
@@ -181,12 +181,12 @@ int Vector_broadcast_add(Vector* target, const double a)
 
 int Vector_gradient(Vector* grad, Vector* x, double (*f)(const Vector*))
 {
-    if (Vector_dim(grad) != 0)
+    if (Vector_get_dim(grad) != 0)
     {
         Vector_free(grad);
     }
 
-    const size_t N   = Vector_dim(x);
+    const size_t N   = Vector_get_dim(x);
     grad->values     = calloc(N, sizeof(double));
     grad->dim        = N;
     const double f_x = f(x);

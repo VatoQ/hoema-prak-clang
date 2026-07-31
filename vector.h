@@ -17,8 +17,10 @@
 
 /**
  * Type for mathematical vector operations.
- * @item `values` array of double precision floats.
- * @item `dim` dimension of the vector.
+ *
+ * - `values` array of double precision floats.
+ *
+ * - `dim` dimension of the vector.
  */
 typedef struct
 {
@@ -31,9 +33,11 @@ typedef struct
     double (*f)(const Vector*);
 } NegContext;
 
-//~- --------------- -~//
-//~- Basic functions -~//
-//~- --------------- -~//
+///////////////////////////////////
+//~- ------------------------- -~//
+//~-      Basic functions      -~//
+//~- ------------------------- -~//
+///////////////////////////////////
 
 /**
  * @brief Constructs a new vector with a specified dimension and value.
@@ -126,9 +130,11 @@ void Vector_free(Vector* v);
  */
 void Vector_print(Vector* v);
 
-//~- -------------------- -~//
-//~- Mathematic Functions -~//
-//~- -------------------- -~//
+/////////////////////////////////////////
+//~- ------------------------------ -~//
+//~-      Mathematic Functions      -~//
+//~- ------------------------------ -~//
+/////////////////////////////////////////
 
 /**
  * @brief Euclidian norm of `v`.
