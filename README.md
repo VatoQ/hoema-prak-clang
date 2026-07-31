@@ -29,7 +29,7 @@ This project has been built on two systems:
 - a personal workstation running CachyOS linux with an *AMD Ryzen 5 5600X*
 
 The instructions below apply to any comparable setup. Adjust paths,
-compiler glags or shell commands as needed for your own environment.
+compiler flags or shell commands as needed for your own environment.
 
 ## Requirements
 - GCC or Clang
