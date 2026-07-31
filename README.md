@@ -24,6 +24,13 @@ toolkit with a clear design philosophy:
 
 # Build instructions
 
+This project has been built on two systems:
+- an HP ProBook running Manjaro Linux with an *AMD Ryzen 5 4500U*
+- a personal workstation running CachyOS linux with an *AMD Ryzen 5 5600X*
+
+The instructions below apply to any comparable setup. Adjust paths,
+compiler glags or shell commands as needed for your own environment.
+
 ## Requirements
 - GCC or Clang
 - POSIX-compatible shell (Fish, Bash, Zsh, etc.)
