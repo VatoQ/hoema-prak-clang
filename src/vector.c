@@ -8,6 +8,30 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void Vector_prepare_target(Vector* target, const size_t dim)
+{
+    if (Vector_is_empty(target))
+    {
+        *target = Vector_zeros(dim);
+        return;
+    }
+
+    if (target->dim == dim)
+    {
+        return;
+    }
+
+    Log_log("Target vector shape mismatch, reallocating", LOG_WARNING);
+
+    Vector_free(target);
+    *target = Vector_zeros(dim);
+}
+
+int Vector_is_empty(const Vector* v)
+{
+    return (v->values == NULL) || (v->dim == 0);
+}
+
 Vector Vector_new(const size_t dim, const double init_val)
 {
     Vector v = Vector_zeros(dim);
@@ -127,7 +151,7 @@ double Vector_norm(const Vector* v)
     double sum = 0.0;
     for (size_t n = 0; n < v->dim; n++)
     {
-        sum += v->values[n];
+        sum += v->values[n] * v->values[n];
     }
 
     return sqrt(sum);
@@ -187,23 +211,25 @@ int Vector_broadcast_add(Vector* target, const double a)
 
 int Vector_gradient(Vector* grad, Vector* x, double (*f)(const Vector*))
 {
-    if (Vector_get_dim(grad) != 0)
-    {
-        Log_log("Non empty Vector deallocated in Vector_gradient()",
-                LOG_WARNING);
-        Vector_free(grad);
-    }
-
     const size_t N   = Vector_get_dim(x);
-    grad->values     = calloc(N, sizeof(double));
-    grad->dim        = N;
     const double f_x = f(x);
+    Vector_prepare_target(grad, N);
     for (size_t n = 0; n < N; n++)
     {
-        x->values[n] += EPS;
-        const double f_x_h = f(x);
-        x->values[n] -= EPS;
-        grad->values[n] = (f_x_h - f_x) / EPS;
+        // x->values[n] += EPS;
+        // const double f_x_h = f(x);
+        // x->values[n] -= EPS;
+        // grad->values[n] = (f_x_h - f_x) / EPS;
+        //
+        double x_orig = x->values[n];
+        x->values[n]  = x_orig + EPS;
+        double f_plus = f(x);
+
+        x->values[n]   = x_orig - EPS;
+        double f_minux = f(x);
+        x->values[n]   = x_orig;
+
+        grad->values[n] = (f_plus - f_minux) / (2.0 * EPS);
     }
 
     return VECTOR_MATH_SUCCESS;
@@ -282,16 +308,17 @@ int Vector_gradient_maximize(Vector* target,
         }
         count++;
     }
-    if (target->dim != 0)
-    {
-        Log_log("Non empty Vector deallocated in Vector_maximize()",
-                LOG_WARNING);
-        Vector_free(target);
-    }
+    // if (target->dim != 0)
+    // {
+    //     Log_log("Non empty Vector deallocated in Vector_maximize()",
+    //             LOG_WARNING);
+    //     Vector_free(target);
+    // }
+    Vector_prepare_target(target, x->dim);
 
-    target->values = calloc(x->dim, sizeof(double));
+    // target->values = calloc(x->dim, sizeof(double));
     memcpy(target->values, x->values, x->dim * sizeof(double));
-    target->dim = x->dim;
+    // target->dim = x->dim;
 
     Vector_free(&grad);
     Vector_free(&grad_tmp);
