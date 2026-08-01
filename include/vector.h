@@ -9,9 +9,14 @@
 //~- ------------ -~//
 //~- STATUS_CODES -~//
 //~- ------------ -~//
-#define VECTOR_MATH_SUCCESS 20
+#define VECTOR_MATH_SUCCESS 0
 #define VECTOR_DIMENSION_ERROR -10
-#define VECTOR_BASIC_SUCCESS 10
+#define VECTOR_BASIC_SUCCESS 0
+
+// typedef enum {
+//     VECTOR_SUCCESS,
+//     VECTOR_DIMENSION_ERROR,
+// } VectorStatus;
 
 #include <stddef.h>
 
@@ -91,6 +96,13 @@ Vector Vector_ones(const size_t dim);
  * @param `v` Source vector to be copied.
  */
 void Vector_copy(Vector* target, const Vector* v);
+/**
+ * @brief Check status of a given vector.
+ *
+ * @param[] v Vector to be inspected.
+ * @return 1 if `v->values == NULL` or `v->dim == 0`, otherwise 0
+ */
+int Vector_is_empty(const Vector* v);
 double Vector_at(const Vector* v, const size_t index);
 /**
  * @brief Set the value of `v` of a specified `index` to `target`.
