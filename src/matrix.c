@@ -15,9 +15,10 @@
  * @param `m` Rows of target matrix.
  * @param `n` Columns of target matrix.
  */
-static void Matrix_prepare_target(Matrix* target, size_t m, size_t n)
+static void Matrix_prepare_target(Matrix* target,
+                                  const size_t m,
+                                  const size_t n)
 {
-
     if (Matrix_is_empty(target))
     {
         *target = Matrix_new(m, n, 0.0);
@@ -92,7 +93,7 @@ Matrix Matrix_zeros_like(const Matrix* M)
  * @param `n` number of values in `val`.
  * @param `val` array of initial values.
  */
-void _diag_helper(Matrix* M, const size_t n, const double* val)
+static void _diag_helper(Matrix* M, const size_t n, const double* val)
 {
     int status = 0;
     for (size_t i = 0; i < n; i++)
@@ -239,7 +240,7 @@ void Matrix_scale(Matrix* target, const double lambda)
     }
 }
 
-int _invert_n_n_matrix(Matrix* target, const Matrix* M)
+static int _invert_n_n_matrix(Matrix* target, const Matrix* M)
 {
     // TODO: Error code handling
     Matrix M_copy = Matrix_new(0, 0, 0.0);
