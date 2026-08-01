@@ -7,6 +7,32 @@
 #include <stdlib.h>
 #include <string.h>
 
+/**
+ * @brief Prepares `target` for further processing. A `target` with matching
+ * dimension will remain unchanged.
+ *
+ * @param `target` Target container for matrix operations.
+ * @param `m` Rows of target matrix.
+ * @param `n` Columns of target matrix.
+ */
+static void Matrix_prepare_target(Matrix* target, size_t m, size_t n)
+{
+
+    if (Matrix_is_empty(target))
+    {
+        *target = Matrix_new(m, n, 0.0);
+        return;
+    }
+
+    if (target->m == m && target->n == n)
+    {
+        return;
+    }
+    Log_log("Target matrix shape mismatch, reallocating", LOG_WARNING);
+    Matrix_free(target);
+    *target = Matrix_new(m, n, 0.0);
+}
+
 Matrix Matrix_new(const size_t m, const size_t n, const double init_val)
 {
     Matrix res = { 0 };
@@ -59,6 +85,13 @@ Matrix Matrix_zeros_like(const Matrix* M)
     return m;
 }
 
+/**
+ * @brief Set a given array of values to the diagonal entries of a matrix.
+ *
+ * @param `M` Target matrix.
+ * @param `n` number of values in `val`.
+ * @param `val` array of initial values.
+ */
 void _diag_helper(Matrix* M, const size_t n, const double* val)
 {
     int status = 0;
@@ -101,11 +134,7 @@ Matrix Matrix_diag_val(const size_t n, const double val)
 
 void Matrix_copy(Matrix* target, const Matrix* M)
 {
-    if (!Matrix_is_empty(target))
-    {
-        Log_log("Non empty Matrix deallocated in Matrix_copy()", LOG_WARNING);
-        Matrix_free(target);
-    }
+    Matrix_prepare_target(target, M->m, M->n);
     target->values = calloc(M->m * M->n, sizeof(double));
     memcpy(target->values, M->values, M->m * M->n * sizeof(double));
     target->m = M->m;
@@ -307,12 +336,7 @@ int _invert_n_n_matrix(Matrix* target, const Matrix* M)
 
 int Matrix_inverse(Matrix* target, const Matrix* M)
 {
-    if (!Matrix_is_empty(target))
-    {
-        Log_log("Non empty Matrix deallocated in Matrix_inverse()",
-                LOG_WARNING);
-        Matrix_free(target);
-    }
+    Matrix_prepare_target(target, M->m, M->n);
     if (M->m != M->n)
     {
         Log_log("Cannot invert matrix where n!=m", LOG_ERROR);
@@ -328,9 +352,19 @@ int Matrix_inverse(Matrix* target, const Matrix* M)
         status += Matrix_get_at(&d, M, 1, 1);
         if (status != MATRIX_SUCCESS * 4)
         {
+            Log_log("Dimension error in Matrix_inverse(), 2x2 case.",
+                    LOG_ERROR);
             return MATRIX_DIMENSION_ERROR;
         }
-        const double scalar = 1 / (a * d - b * c);
+        const double denom = a * d - b * c;
+        if (fabs(denom) < EPS)
+        {
+            Log_log("Math error in Matrix_inverse(), 2x2 case. Matrix is not "
+                    "invertable.",
+                    LOG_ERROR);
+            return MATRIX_MATH_ERROR;
+        }
+        const double scalar = 1 / denom;
         double init_vals[4] = { d, -b, -c, a };
 
         Matrix tmp = Matrix_new_vals(M->m, M->n, init_vals);
@@ -351,11 +385,12 @@ int Matrix_inverse(Matrix* target, const Matrix* M)
 
 int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
 {
-    if (M->m != v->dim)
+    if (M->n != v->dim)
     {
         Log_log("Index out of range in Matrix_Vector_dot()", LOG_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
+    // TODO: Vector_prepare_target
     const size_t DIM = M->m;
     const size_t N   = M->n;
     Vector tmp       = Vector_new(DIM, 0.0);
@@ -392,12 +427,7 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
         return MATRIX_DIMENSION_ERROR;
     }
 
-    if (!Matrix_is_empty(target))
-    {
-        Log_log("Non empty Matrix deallocated in Matrix_Matrix_dot()",
-                LOG_WARNING);
-        Matrix_free(target);
-    }
+    Matrix_prepare_target(target, M1->n, M2->m);
 
     *target    = Matrix_new(M1->m, M2->n, 0);
     int status = 0;
@@ -428,17 +458,12 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
 
 int Matrix_jacobi(Matrix* target, const Vector* x, Vector (*f)(const Vector* x))
 {
-    if (!Matrix_is_empty(target))
-    {
-        Log_log("Non empty Matrix deallocated in Matrix_jacobi()", LOG_WARNING);
-        Matrix_free(target);
-    }
     const Vector f_x = f(x);
     const size_t M   = f_x.dim;
     const size_t N   = x->dim;
     Vector f_x_eps   = Vector_new(M, 0.0);
-    *target          = Matrix_new(M, N, 0.0);
-    Vector x_eps     = Vector_new(0, 0.0);
+    Matrix_prepare_target(target, M, N);
+    Vector x_eps = Vector_new(0, 0.0);
     Vector_copy(&x_eps, x);
     double fn_x, fn_x_eps;
 
@@ -469,19 +494,13 @@ int Matrix_jacobi(Matrix* target, const Vector* x, Vector (*f)(const Vector* x))
 
 int Matrix_Matrix_dot_jordan(Matrix* target, const Matrix* M1, const Matrix* M2)
 {
-    if (!Matrix_is_empty(target))
-    {
-        Log_log("Non empty Matrix deallocated in Matrix_Matrix_dot_jordan()",
-                LOG_WARNING);
-        Matrix_free(target);
-    }
     if (M1->m != M1->n || M2->m != M2->n || M1->m != M2->m)
     {
         Log_log("Jordan multiplication requires symmetrical matrices",
                 LOG_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
-    *target   = Matrix_zeros_like(M1);
+    Matrix_prepare_target(target, M1->m, M1->n);
     Matrix AB = Matrix_new(0, 0, 0.0);
     Matrix BA = Matrix_new(0, 0, 0.0);
     Matrix_Matrix_dot(&AB, M1, M2);
