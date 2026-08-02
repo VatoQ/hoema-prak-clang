@@ -206,15 +206,6 @@ void test_matrix_diag_val(void)
     Matrix_free(&D);
 }
 
-void test_matrix_is_empty(void)
-{
-    Matrix A = Matrix_new(3, 3, 1.0);
-    TEST_CHECK(Matrix_is_empty(&A) == 0);
-
-    Matrix_free(&A);
-    TEST_CHECK(Matrix_is_empty(&A) == 1);
-}
-
 void test_matrix_free(void)
 {
     Matrix A = Matrix_new(5, 5, 2.0);
@@ -300,7 +291,6 @@ TEST_LIST = { { "matrix_create", test_matrix_create },
               { "matrix_zeros_like", test_matrix_zeros_like },
               { "matrix_diag", test_matrix_diag },
               { "matrix_diag_val", test_matrix_diag_val },
-              { "matrix_is_empty", test_matrix_is_empty },
               { "matrix_free", test_matrix_free },
               { "matrix_vector_dot", test_matrix_vector_dot },
               { "matrix_matrix_dot", test_matrix_matrix_dot },

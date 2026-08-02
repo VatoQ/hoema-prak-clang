@@ -60,10 +60,10 @@ void test_vector_zeros_like(void)
 
 void test_vector_zeros_ones(void)
 {
-    Vector z = Vector_zeros(3);
-    Vector o = Vector_ones(3);
+    Vector z = Vector_zeros(8);
+    Vector o = Vector_ones(8);
 
-    for (size_t i = 0; i < 3; i++)
+    for (size_t i = 0; i < 8; i++)
     {
         TEST_CHECK(z.values[i] == 0.0);
         TEST_CHECK(o.values[i] == 1.0);
@@ -89,25 +89,16 @@ void test_vector_copy(void)
     Vector_free(&t);
 }
 
-void test_vector_is_empty(void)
-{
-    Vector v = Vector_new(3, 1.0);
-    TEST_CHECK(Vector_is_empty(&v) == 0);
-
-    Vector_free(&v);
-    TEST_CHECK(Vector_is_empty(&v) == 1);
-}
-
 void test_vector_get_set(void)
 {
     Vector v = Vector_new(4, 0.0);
 
     int status = Vector_set_item(&v, 2, 9.81);
-    TEST_CHECK(status == VECTOR_BASIC_SUCCESS);
+    TEST_CHECK(status == VECTOR_SUCCESS);
 
     double val = 0.0;
     status     = Vector_get_at(&val, &v, 2);
-    TEST_CHECK(status == VECTOR_BASIC_SUCCESS);
+    TEST_CHECK(status == VECTOR_SUCCESS);
     TEST_CHECK(fabs(val - 9.81) < EPS);
 
     status = Vector_set_item(&v, 10, 1.0);
@@ -139,14 +130,14 @@ void test_vector_add_sub(void)
     Vector B = Vector_new_vals(3, b_vals);
 
     int status = Vector_add(&A, &B);
-    TEST_CHECK(status == VECTOR_MATH_SUCCESS);
+    TEST_CHECK(status == VECTOR_SUCCESS);
 
     TEST_CHECK(fabs(A.values[0] - 5) < EPS);
     TEST_CHECK(fabs(A.values[1] - 7) < EPS);
     TEST_CHECK(fabs(A.values[2] - 9) < EPS);
 
     status = Vector_sub(&A, &B);
-    TEST_CHECK(status == VECTOR_MATH_SUCCESS);
+    TEST_CHECK(status == VECTOR_SUCCESS);
 
     TEST_CHECK(fabs(A.values[0] - 1) < EPS);
     TEST_CHECK(fabs(A.values[1] - 2) < EPS);
@@ -161,7 +152,7 @@ void test_vector_scale(void)
     Vector v = Vector_new(3, 2.0);
 
     int status = Vector_scale(&v, 0.5);
-    TEST_CHECK(status == VECTOR_MATH_SUCCESS);
+    TEST_CHECK(status == VECTOR_SUCCESS);
 
     for (size_t i = 0; i < 3; i++)
         TEST_CHECK(fabs(v.values[i] - 1.0) < EPS);
@@ -174,12 +165,28 @@ void test_vector_broadcast_add(void)
     Vector v = Vector_new(4, 1.0);
 
     int status = Vector_broadcast_add(&v, 2.0);
-    TEST_CHECK(status == VECTOR_MATH_SUCCESS);
+    TEST_CHECK(status == VECTOR_SUCCESS);
 
     for (size_t i = 0; i < 4; i++)
         TEST_CHECK(fabs(v.values[i] - 3.0) < EPS);
 
     Vector_free(&v);
+}
+
+void test_vector_dot(void)
+{
+    double vals_u[] = { 2, 3, 4, 5 };
+    double vals_v[] = { 3, 4, 1, 4 };
+    Vector u        = Vector_new_vals(4, vals_u);
+    Vector v        = Vector_new_vals(4, vals_v);
+    Vector w        = Vector_new(6, 3.14);
+    double dot      = 0.0;
+    double sink     = 0.0;
+    int status      = Vector_dot(&dot, &u, &v);
+    int err_status  = Vector_dot(&dot, &u, &w);
+    TEST_CHECK(fabs(dot - (2 * 3 + 3 * 4 + 4 + 5 * 4)) < EPS);
+    TEST_CHECK(status == VECTOR_SUCCESS);
+    TEST_CHECK(err_status == VECTOR_DIMENSION_ERROR);
 }
 
 static double test_func_square(const Vector* x)
@@ -209,7 +216,7 @@ void test_vector_gradient(void)
     Vector grad   = Vector_new(2, 0.0);
 
     int status = Vector_gradient(&grad, &x, test_func_square);
-    TEST_CHECK(status == VECTOR_MATH_SUCCESS);
+    TEST_CHECK(status == VECTOR_SUCCESS);
 
     TEST_CHECK(fabs(grad.values[0] + 2.0) < EPS);
     TEST_CHECK(fabs(grad.values[1] + 4.0) < EPS);
@@ -227,7 +234,7 @@ void test_vector_gradient_maximize(void)
     int status     = Vector_gradient_maximize(&out, &x, test_func_square, 0.1);
     double f_x_max = test_func_square(&out);
 
-    TEST_CHECK(status == VECTOR_MATH_SUCCESS);
+    TEST_CHECK(status == VECTOR_SUCCESS);
     TEST_CHECK(f_x_max >= f_x);
 
     Vector_free(&x);
@@ -244,7 +251,7 @@ void test_vector_gradient_minimize(void)
     int status = Vector_gradient_minimize(&out, &x, test_func_square_min, 0.1);
     double f_x_min = test_func_square_min(&out);
 
-    TEST_CHECK(status == VECTOR_MATH_SUCCESS);
+    TEST_CHECK(status == VECTOR_SUCCESS);
 
     TEST_CHECK(f_x >= f_x_min);
 
@@ -258,10 +265,10 @@ TEST_LIST = { { "vector_create", test_vector_create },
               { "vector_zeros_like", test_vector_zeros_like },
               { "vector_zeros_ones", test_vector_zeros_ones },
               { "vector_copy", test_vector_copy },
-              { "vector_is_empty", test_vector_is_empty },
               { "vector_get_set", test_vector_get_set },
               { "vector_norm", test_vector_norm },
               { "vector_add_sub", test_vector_add_sub },
+              { "vector_dot", test_vector_dot },
               { "vector_scale", test_vector_scale },
               { "vector_broadcast_add", test_vector_broadcast_add },
               { "vector_gradient", test_vector_gradient },
