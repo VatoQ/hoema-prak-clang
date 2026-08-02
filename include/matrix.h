@@ -96,6 +96,35 @@ Matrix Matrix_new(const size_t m, const size_t n, const double init_val);
  * @return Matrix with the shape { `init_vals[0]` ... `init_vals[m * n - 1]`  }
  */
 Matrix Matrix_new_vals(const size_t m, const size_t n, const double* init_vals);
+
+/**
+ * @brief Construct a new Matrix with normally distributed initial values.
+ *
+ * @param `m` Rows of the new matrix.
+ * @param `n` Columns of the new matrix.
+ * @param `mean` Mean of the distribution.
+ * @param `variance` Variance of the distribution.
+ * @return Matrix with the shape { \[N(mean, variance)\] (`m * n` times)}
+ */
+Matrix Matrix_new_random_normal(const size_t m,
+                                const size_t n,
+                                const double mean,
+                                const double variance);
+
+/**
+ * @brief Construct a new matrix with uniformly distributed values.
+ *
+ * @param `m` Rows of the new matrix.
+ * @param `n` Columns of the new matrix.
+ * @param `min` Smallest value in the distribution.
+ * @param `max` Largest value in the distribution.
+ * @return Matrix with uniformly distributed values.
+ */
+Matrix Matrix_new_random_uniform(const size_t m,
+                                 const size_t n,
+                                 const double min,
+                                 const double max);
+
 /**
  * @brief Construct a Matrix with the shape of `M` filled with zeros.
  *

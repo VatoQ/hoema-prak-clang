@@ -1,5 +1,6 @@
 #include "../include/matrix.h"
 #include "../include/logging.h"
+#include "../include/prng.h"
 #include "../include/vector.h"
 #include <math.h>
 #include <stddef.h>
@@ -78,6 +79,36 @@ Matrix Matrix_new_vals(const size_t m, const size_t n, const double* init_vals)
     memcpy(M.values, init_vals, m * n * sizeof(double));
     M.m = m;
     M.n = n;
+    return M;
+}
+
+Matrix Matrix_new_random_normal(const size_t m,
+                                const size_t n,
+                                const double mean,
+                                const double variance)
+{
+    PRNG_State prng = PRNG_State_init(NO_SEED);
+
+    Matrix M = Matrix_new(m, n, 0.0);
+    for (size_t i = 0; i < m * n; i++)
+    {
+        M.values[i] = PRNG_State_normal(&prng, mean, variance);
+    }
+    return M;
+}
+
+Matrix Matrix_new_random_uniform(const size_t m,
+                                 const size_t n,
+                                 const double min,
+                                 const double max)
+{
+    PRNG_State prng = PRNG_State_init(NO_SEED);
+
+    Matrix M = Matrix_new(m, n, 0);
+    for (size_t i = 0; i < m * n; i++)
+    {
+        M.values[i] = PRNG_State_random_double_range(&prng, min, max);
+    }
     return M;
 }
 
