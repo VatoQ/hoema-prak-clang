@@ -102,3 +102,31 @@ double PRNG_State_normal(PRNG_State* prng,
         }
     }
 }
+
+double PRNG_State_exponential(PRNG_State* prng, const double lambda)
+{
+    const double umax = 1.0;
+    const double vmax = (2.0 / lambda) * exp(-1.0);
+
+    for (;;)
+    {
+        double U1 = PRNG_State_random_double(prng);
+        double U2 = PRNG_State_random_double(prng);
+
+        double u = umax * U1;
+        double v = vmax * U2;
+
+        if (u <= 0.0)
+        {
+            continue;
+        }
+
+        double x  = v / u;
+        double fx = exp(-lambda * x);
+
+        if (u * u <= fx)
+        {
+            return x;
+        }
+    }
+}
