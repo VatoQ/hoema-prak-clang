@@ -7,6 +7,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+int Matrix_is_empty(const Matrix* M)
+{
+    return ((M->values == NULL) || (M->m == 0 && M->n == 0));
+}
+
 /**
  * @brief Prepares `target` for further processing. A `target` with matching
  * dimension will remain unchanged.
@@ -176,12 +181,6 @@ void Matrix_free(Matrix* M)
     free(M->values);
     M->values = NULL;
     M->m = 0, M->n = 0;
-}
-
-int Matrix_is_empty(const Matrix* M)
-{
-    // return (M->m == 0 || M->n == 0);
-    return ((M->values == NULL) || (M->m == 0 && M->n == 0));
 }
 
 void Matrix_print(const Matrix* M)
@@ -391,11 +390,10 @@ int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
         Log_log("Index out of range in Matrix_Vector_dot()", LOG_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
-    // TODO: Vector_prepare_target
     const size_t DIM = M->m;
     const size_t N   = M->n;
-    Vector tmp       = Vector_new(DIM, 0.0);
-    int checksum     = 0;
+    Vector_prepare_target(target, DIM);
+    int checksum = 0;
 
     for (size_t d = 0; d < DIM; d++)
     {
@@ -407,7 +405,7 @@ int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
             double V_val = Vector_at(v, n);
             sum += M_val * V_val;
         }
-        Vector_set_item(&tmp, d, sum);
+        Vector_set_item(target, d, sum);
     }
 
     if (checksum != DIM * N * MATRIX_SUCCESS)
@@ -415,7 +413,6 @@ int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
         Log_log("Unknown error in Matrix_Vector_dot()", LOG_ERROR);
         return MATRIX_BASIC_ERROR;
     }
-    Vector_copy(target, &tmp);
 
     return MATRIX_SUCCESS;
 }
@@ -462,9 +459,9 @@ int Matrix_jacobi(Matrix* target, const Vector* x, Vector (*f)(const Vector* x))
     const Vector f_x = f(x);
     const size_t M   = f_x.dim;
     const size_t N   = x->dim;
-    Vector f_x_eps   = Vector_new(M, 0.0);
+    Vector f_x_eps   = Vector_zeros(M);
     Matrix_prepare_target(target, M, N);
-    Vector x_eps = Vector_new(0, 0.0);
+    Vector x_eps = Vector_zeros_like(x);
     Vector_copy(&x_eps, x);
     double fn_x, fn_x_eps;
 

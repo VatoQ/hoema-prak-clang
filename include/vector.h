@@ -9,14 +9,15 @@
 //~- ------------ -~//
 //~- STATUS_CODES -~//
 //~- ------------ -~//
-#define VECTOR_MATH_SUCCESS 0
-#define VECTOR_DIMENSION_ERROR -10
-#define VECTOR_BASIC_SUCCESS 0
+// #define VECTOR_SUCCESS 0
+// #define VECTOR_DIMENSION_ERROR -10
+// #define VECTOR_SUCCESS 0
 
-// typedef enum {
-//     VECTOR_SUCCESS,
-//     VECTOR_DIMENSION_ERROR,
-// } VectorStatus;
+typedef enum
+{
+    VECTOR_SUCCESS,
+    VECTOR_DIMENSION_ERROR,
+} VectorStatus;
 
 #include <stddef.h>
 
@@ -44,6 +45,7 @@ typedef struct
 //~- ------------------------- -~//
 ///////////////////////////////////
 
+void Vector_prepare_target(Vector* target, const size_t dim);
 /**
  * @brief Constructs a new vector with a specified dimension and value.
  *
@@ -96,13 +98,6 @@ Vector Vector_ones(const size_t dim);
  * @param `v` Source vector to be copied.
  */
 void Vector_copy(Vector* target, const Vector* v);
-/**
- * @brief Check status of a given vector.
- *
- * @param[] v Vector to be inspected.
- * @return 1 if `v->values == NULL` or `v->dim == 0`, otherwise 0
- */
-int Vector_is_empty(const Vector* v);
 double Vector_at(const Vector* v, const size_t index);
 /**
  * @brief Set the value of `v` of a specified `index` to `target`.
@@ -110,7 +105,7 @@ double Vector_at(const Vector* v, const size_t index);
  * @param target Value is stored here.
  * @param v Vector to be accessed.
  * @param index Index of the data
- * @return `VECTOR_DIMENSION_ERROR` or `VECTOR_BASIC_SUCCESS`
+ * @return `VECTOR_DIMENSION_ERROR` or `VECTOR_SUCCESS`
  */
 int Vector_get_at(double* target, const Vector* v, const size_t index);
 /**
@@ -119,7 +114,7 @@ int Vector_get_at(double* target, const Vector* v, const size_t index);
  * @param `v` Vector in which to store `val`.
  * @param `index` Index at which to store `val`.
  * @param `val` Value to be stored at `index` in `v`
- * @return `VECTOR_DIMENSION_ERROR` or `VECTOR_BASIC_SUCCESS`
+ * @return `VECTOR_DIMENSION_ERROR` or `VECTOR_SUCCESS`
  */
 int Vector_set_item(Vector* v, const size_t index, const double val);
 /**
@@ -162,7 +157,7 @@ double Vector_norm(const Vector* v);
  * @param `target` Target vector
  * @param `v` summand
  * @return `VECTOR_DIMENSION_ERROR` if the dimensions of the vectors don't
- * match, otherwise `VECTOR_MATH_SUCCESS`.
+ * match, otherwise `VECTOR_SUCCESS`.
  */
 int Vector_add(Vector* target, const Vector* v);
 /**
@@ -172,7 +167,7 @@ int Vector_add(Vector* target, const Vector* v);
  * @param `target` Target vector
  * @param `v` subtrahend
  * @return `VECTOR_DIMENSION_ERROR` if the dimensions of the vectors don't
- * match, otherwise `VECTOR_MATH_SUCCESS`.
+ * match, otherwise `VECTOR_SUCCESS`.
  */
 int Vector_sub(Vector* target, const Vector* v);
 /**
@@ -180,7 +175,7 @@ int Vector_sub(Vector* target, const Vector* v);
  *
  * @param `target` Vector to be scaled.
  * @param `lambda` Scalar.
- * @return `VECTOR_MATH_SUCCESS`
+ * @return `VECTOR_SUCCESS`
  */
 int Vector_scale(Vector* target, const double lambda);
 /**
@@ -188,18 +183,39 @@ int Vector_scale(Vector* target, const double lambda);
  *
  * @param `target` Target vector.
  * @param `a` addend.
- * @return `VECTOR_MATH_SUCCESS`
+ * @return `VECTOR_SUCCESS`
  */
 int Vector_broadcast_add(Vector* target, const double a);
+
+/**
+ * @brief Subtract `a` from every item in `target`.
+ *
+ * @param `target` Target vector.
+ * @param `a` subtrahend.
+ * @return `VECTOR_SUCCESS`
+ */
+int Vector_broadcast_sub(Vector* target, const double a);
+
+/**
+ * @brief Store the dot product `<u,v>` to `target`.
+ *
+ * @param target Target of dot product.
+ * @param u First vector.
+ * @param v Second vector.
+ * @return `VECTOR_SUCCESS` or `VECTOR_DIMENSION_ERROR`
+ */
+int Vector_dot(double* target, const Vector* u, const Vector* v);
 /**
  * @brief Numerical approximation of \[\nabla(f(x))\].
  *
  * @param `grad` Target vector. The gradient is stored here.
  * @param `x` Point at which the gradient is evaluated.
  * @param `f(x)` Function that accepts a vector and returns a real number.
- * @return `VECTOR_MATH_SUCCESS`
+ * @return `VECTOR_SUCCESS`
  */
-int Vector_gradient(Vector* grad, Vector* x, double (*f)(const Vector* x));
+int Vector_gradient(Vector* grad,
+                    const Vector* x,
+                    double (*f)(const Vector* x));
 /**
  * @brief Gradient ascent method to maximize \[f(x)\].
  *
@@ -207,10 +223,10 @@ int Vector_gradient(Vector* grad, Vector* x, double (*f)(const Vector* x));
  * @param `x` Starting point of the maximizer.
  * @param `f(x)` Function to be maximized.
  * @param stepsize Initial stepsize of the gradient ascent.
- * @return `VECTOR_DIMENSION_ERROR` or `VECTOR_MATH_SUCCESS`
+ * @return `VECTOR_DIMENSION_ERROR` or `VECTOR_SUCCESS`
  */
 int Vector_gradient_maximize(Vector* target,
-                             Vector* x,
+                             const Vector* x,
                              double (*f)(const Vector*),
                              double stepsize);
 /**
@@ -220,10 +236,10 @@ int Vector_gradient_maximize(Vector* target,
  * @param `x` Starting point of the maximizer.
  * @param `f(x)` Function to be maximized.
  * @param stepsize Initial stepsize of the gradient descent.
- * @return `VECTOR_DIMENSION_ERROR` or `VECTOR_MATH_SUCCESS`
+ * @return `VECTOR_DIMENSION_ERROR` or `VECTOR_SUCCESS`
  */
 int Vector_gradient_minimize(Vector* target,
-                             Vector* x,
+                             const Vector* x,
                              double (*f)(const Vector*),
                              double stepsize);
 

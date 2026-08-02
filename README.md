@@ -14,6 +14,7 @@ toolkit with a clear design philosophy:
 - [x] matrix multiplication (including Jordan product)
 - [x] matrix inversion for arbitrary n×n matrices
 - [x] a minimal logging system
+- [x] Pseudo random number generation.
 - [ ] a small unit‑testing setup using Acutest
 - [ ] Differential equations
 - [ ] Fourier transformations (DFT, FFT)
