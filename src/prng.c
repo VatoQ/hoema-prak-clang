@@ -1,4 +1,5 @@
-#include "../include/random.h"
+#include "../include/prng.h"
+#include <math.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -68,4 +69,36 @@ double PRNG_State_random_double_range(PRNG_State* prng, double min, double max)
 {
     const double x = PRNG_State_random_double(prng);
     return min + x * (max - min);
+}
+
+double PRNG_State_normal(PRNG_State* prng,
+                         const double mean,
+                         const double variance)
+{
+    double disc = sqrt(mean * mean + 8.0 * variance * variance);
+
+    double x_plus  = (mean + disc) / 2.0;
+    double x_minus = (mean - disc) / 2.0;
+
+    double v_plus  = x_plus * exp(-((x_plus - mean) * (x_plus - mean)) /
+                                  (4.0 * variance * variance));
+    double v_minus = x_minus * exp(-((x_minus - mean) * (x_minus - mean)) /
+                                   (4.0 * variance * variance));
+
+    for (;;)
+    {
+        double U1 = PRNG_State_random_double(prng);
+        double U2 = PRNG_State_random_double(prng);
+
+        double u = U1;
+        double v = v_minus + (v_plus - v_minus) * U2;
+
+        double x = v / u;
+
+        double fx = exp(-0.5 * (x - mean) * (x - mean) / (variance * variance));
+        if (u * u <= fx)
+        {
+            return x;
+        }
+    }
 }

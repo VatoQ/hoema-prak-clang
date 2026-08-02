@@ -53,4 +53,10 @@ double PRNG_State_random_double(PRNG_State* prng);
  */
 double PRNG_State_random_double_range(PRNG_State* prng, double min, double max);
 
+double PRNG_State_normal(PRNG_State* prng,
+                         const double mean,
+                         const double variance);
+
+double PRNG_State_exponential(PRNG_State* prng, const double lambda);
+
 #endif // RANDOM_H
