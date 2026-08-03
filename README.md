@@ -46,10 +46,8 @@ Depending on the features used it may look like the following:
     gcc -O3 -march=native -ffast-math \
     src/main.c src/vector.c src/matrix.c src/logging.c \
     -o main -lm
-
-
-
 ```
+
 Keep in mind that every feature uses the logging feature, 
 so every build must include `logging.c`
 
