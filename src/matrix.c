@@ -3,6 +3,7 @@
 #include "../include/prng.h"
 #include "../include/vector.h"
 #include <math.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,14 +14,6 @@ int Matrix_is_empty(const Matrix* M)
     return ((M->values == NULL) || (M->m == 0 && M->n == 0));
 }
 
-/**
- * @brief Prepares `target` for further processing. A `target` with matching
- * dimension will remain unchanged.
- *
- * @param `target` Target container for matrix operations.
- * @param `m` Rows of target matrix.
- * @param `n` Columns of target matrix.
- */
 static void Matrix_prepare_target(Matrix* target,
                                   const size_t m,
                                   const size_t n)
@@ -252,10 +245,12 @@ double _Frobenius_helper(const Matrix* M)
 double _Spectral_helper(const Matrix* M)
 {
     Vector b           = Vector_new_random_normal(M->n, 0, 1);
+    double b_norm      = Vector_norm(&b);
     Vector tmp         = Vector_zeros_like(&b);
     double lambda      = 0.0;
     double lambda_prev = lambda;
     double denom       = 1;
+    Vector_scale(&b, 1 / b_norm);
 
     do
     {
@@ -492,7 +487,9 @@ int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
     const size_t DIM = M->m;
     const size_t N   = M->n;
     Vector_prepare_target(target, DIM);
-    int checksum = 0;
+    int checksum              = 0;
+    double* restrict M_values = M->values;
+    double* restrict v_values = v->values;
 
 #pragma omp parallel for
     for (size_t d = 0; d < DIM; d++)
@@ -501,8 +498,8 @@ int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
 #pragma omp simd
         for (size_t n = 0; n < N; n++)
         {
-            double M_val = M->values[d * M->n + n];
-            double V_val = v->values[n];
+            double M_val = M_values[d * M->n + n];
+            double V_val = v_values[n];
             sum += M_val * V_val;
         }
         target->values[d] = sum;
@@ -527,8 +524,10 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
 
     Matrix_prepare_target(target, M1->n, M2->m);
 
-    *target    = Matrix_new(M1->m, M2->n, 0);
-    int status = 0;
+    int status                     = 0;
+    double* restrict M1_values     = M1->values;
+    double* restrict M2_values     = M2->values;
+    double* restrict target_values = target->values;
 
     for (size_t m = 0; m < target->m; m++)
     {
@@ -541,17 +540,12 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
             for (size_t o = 0; o < M1->n; o++)
             {
                 double a, b;
-                a = M1->values[m * M1->n + o];
-                b = M2->values[o * M2->n + n];
+                a = M1_values[m * M1->n + o];
+                b = M2_values[o * M2->n + n];
                 sum += a * b;
             }
-            target->values[m * target->n + n] = sum;
+            target_values[m * target->n + n] = sum;
         }
-    }
-    if (status != target->m * M1->n * 2 * MATRIX_SUCCESS)
-    {
-        Log_log("Unknown error in Matrix_Matrix_dot()", LOG_ERROR);
-        return MATRIX_BASIC_ERROR;
     }
     return MATRIX_SUCCESS;
 }
@@ -569,7 +563,6 @@ int Matrix_jacobi(Matrix* target, const Vector* x, Vector (*f)(const Vector* x))
 
     for (size_t m = 0; m < M; m++)
     {
-
         for (size_t n = 0; n < N; n++)
         {
             x_eps.values[n] += MATRIX_EPS;
@@ -604,5 +597,271 @@ int Matrix_Matrix_dot_jordan(Matrix* target, const Matrix* M1, const Matrix* M2)
     Matrix_add(target, &AB);
     Matrix_free(&AB);
     Matrix_free(&BA);
+    return MATRIX_SUCCESS;
+}
+
+int Matrix_QR(Matrix* Q, Matrix* R, const Matrix* A)
+{
+    // Matrix_prepare_target(Q, A->m, A->n);
+    // Matrix_prepare_target(R, A->m, A->n);
+    // Matrix outer = Matrix_new(A->n, A->n, 0);
+    size_t m = A->m;
+    size_t n = A->n;
+    Matrix_copy(R, A);
+    Matrix I = Matrix_diag_val(A->n, 1);
+    Matrix_copy(Q, &I);
+    // Matrix H   = Matrix_zeros_like(&I);
+    // Matrix tmp = Matrix_zeros_like(A);
+    // Matrix A_copy = Matrix_zeros_like(A);
+
+    for (size_t k = 0; k < A->n; k++)
+    {
+        size_t rows = m - k;
+
+        Vector x = Vector_zeros(rows);
+        for (size_t i = 0; i < rows; i++)
+        {
+            x.values[i] = R->values[(k + i) * n + k];
+        }
+
+        double norm_x = Vector_norm(&x);
+        double sign   = (x.values[0] >= 0 ? 1 : -1);
+
+        Vector e1    = Vector_zeros(rows);
+        e1.values[0] = 1;
+
+        Vector v = Vector_zeros_like(&x);
+        Vector_copy(&v, &x);
+        Vector_scale(&e1, sign * norm_x);
+        Vector_add(&v, &e1);
+
+        Vector_free(&e1);
+        Vector_scale(&v, 1.0 / Vector_norm(&v));
+
+        for (size_t j = k; j < n; j++)
+        {
+            double dot = 0.0;
+            for (size_t i = 0; i < rows; i++)
+            {
+                dot += v.values[i] * R->values[(k + i) * n + j];
+            }
+            for (size_t i = 0; i < rows; i++)
+            {
+                R->values[(k + i) * n + j] -= 2 * v.values[i] * dot;
+            }
+        }
+
+        for (size_t i = 0; i < m; i++)
+        {
+            double dot = 0.0;
+            for (size_t r = 0; r < rows; r++)
+            {
+                dot += Q->values[i * n + (k + r)] * v.values[r];
+            }
+
+            for (size_t r = 0; r < rows; r++)
+            {
+                Q->values[i * n + (k + r)] -= 2 * dot * v.values[r];
+            }
+        }
+        Vector_free(&v);
+        Vector_free(&x);
+    }
+
+    return MATRIX_SUCCESS;
+}
+
+int _eigvals_two(Vector* eigenvalues, const Matrix* M) {}
+
+double _wilkinson_shift(const Matrix* A, size_t active)
+{
+    size_t n = A->n;
+    size_t m = A->m;
+    double a = A->values[(active - 2) * n + (active - 2)];
+    double b = A->values[(active - 2) * n + (active - 1)];
+    double c = A->values[(active - 1) * n + (active - 2)];
+    double d = A->values[(active - 1) * n + (active - 1)];
+
+    double tr        = (a + d) / 2.0;
+    double det       = (a - d) / 2.0;
+    double disc_term = det * det + b * c;
+    if (disc_term < 0.0)
+    {
+        // printf("neg disc_term: %f\n", disc_term);
+        disc_term = 0.0;
+    }
+    double disc = sqrt(disc_term);
+
+    double lambda1 = tr + disc;
+    double lambda2 = tr - disc;
+
+    return (fabs(lambda1 - d) < fabs(lambda2 - d)) ? lambda1 : lambda2;
+}
+
+int _eigvals_big(Vector* eigenvalues, const Matrix* M)
+{
+
+    const size_t max_iters = 10000;
+    const double eps       = 1e-12;
+    Matrix A               = Matrix_zeros_like(M);
+    printf("M:\n");
+    Matrix_print(M);
+    Matrix_Hessenberg(&A, M);
+    printf("Heisenberg(M):\n");
+    Matrix_print(&A);
+    printf("\n");
+    Matrix Q = Matrix_zeros_like(M);
+    Matrix R = Matrix_zeros_like(M);
+
+    size_t counter = 0;
+
+    size_t active = A.n;
+    for (size_t i = 0; i < max_iters; i++)
+    {
+        counter++;
+        size_t n   = A.n;
+        size_t m   = A.m;
+        double sub = fabs(A.values[(active - 1) * n + (active - 2)]);
+        if (sub < eps)
+        {
+            active--;
+            // break;
+        }
+        double mu = _wilkinson_shift(&A, active);
+        // printf("mu: %f\n", mu);
+        for (size_t i = 0; i < A.n; i++)
+        {
+            A.values[i * A.n + i] -= mu;
+        }
+
+        Matrix_QR(&Q, &R, &A);
+        Matrix_Matrix_dot(&A, &R, &Q);
+        for (size_t i = 0; i < A.n; i++)
+        {
+            A.values[i * A.n + i] += mu;
+        }
+
+        bool converged = true;
+        for (size_t i = 0; i < active - 1; i++)
+        {
+            if (fabs(A.values[(i + 1) * A.n + i]) > eps)
+            {
+                converged = false;
+                break;
+            }
+        }
+        if (converged)
+        {
+            break;
+            active--;
+        }
+    }
+    Matrix_print(&A);
+    printf("After %zu iterations!\n", counter);
+    Vector_prepare_target(eigenvalues, A.n);
+    for (size_t i = 0; i < A.n; i++)
+    {
+        eigenvalues->values[i] = A.values[i * A.n + i];
+    }
+
+    Matrix_free(&Q);
+    Matrix_free(&R);
+    Matrix_free(&A);
+
+    return MATRIX_SUCCESS;
+}
+
+int Matrix_eigvals(Vector* eigenvalues, const Matrix* M)
+{
+    if (M->n == 2)
+    {
+        return _eigvals_two(eigenvalues, M);
+    }
+
+    return _eigvals_big(eigenvalues, M);
+}
+
+int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b)
+{
+    Matrix_prepare_target(target, a->dim, b->dim);
+
+    for (size_t m = 0; m < a->dim; m++)
+    {
+        for (size_t n = 0; n < b->dim; n++)
+        {
+            target->values[m * target->n + n] = a->values[m] * b->values[n];
+        }
+    }
+
+    return VECTOR_SUCCESS;
+}
+
+int Matrix_Hessenberg(Matrix* H, const Matrix* A)
+{
+    size_t m = A->m;
+    size_t n = A->n;
+
+    Matrix_copy(H, A);
+
+    for (size_t k = 0; k < m - 2; k++)
+    {
+        size_t rows = m - (k + 1);
+
+        Vector x = Vector_zeros(rows);
+        for (size_t i = 0; i < rows; i++)
+        {
+            x.values[i] = H->values[(k + 1 + i) * n + k];
+        }
+        double normx = Vector_norm(&x);
+        if (normx == 0.0)
+        {
+            Vector_free(&x);
+            continue;
+        }
+
+        double sign = (x.values[0] >= 0.0) ? 1.0 : -1.0;
+
+        Vector e1    = Vector_zeros(rows);
+        e1.values[0] = 1.0;
+
+        Vector v = Vector_zeros_like(&x);
+        Vector_copy(&v, &x);
+        Vector_scale(&e1, sign * normx);
+        Vector_add(&v, &e1);
+
+        Vector_free(&e1);
+
+        double vnorm = Vector_norm(&v);
+        Vector_scale(&v, 1.0 / vnorm);
+
+        for (size_t j = k; j < n; j++)
+        {
+            double dot = 0.0;
+            for (size_t i = 0; i < rows; i++)
+            {
+                dot += v.values[i] * H->values[(k + 1 + i) * n + j];
+            }
+
+            for (size_t i = 0; i < rows; i++)
+            {
+                H->values[(k + 1 + i) * n + j] -= 2.0 * v.values[i] * dot;
+            }
+        }
+
+        for (size_t i = 0; i < m; i++)
+        {
+            double dot = 0.0;
+            for (size_t r = 0; r < rows; r++)
+            {
+                dot += H->values[i * n + (k + 1 + r)] * v.values[r];
+            }
+            for (size_t r = 0; r < rows; r++)
+            {
+                H->values[i * n + (k + 1 + r)] -= 2.0 * dot * v.values[r];
+            }
+        }
+        Vector_free(&v);
+        Vector_free(&x);
+    }
     return MATRIX_SUCCESS;
 }
