@@ -61,21 +61,13 @@ Matrix Matrix_new(const size_t m, const size_t n, const double init_val)
         res.m      = m;
         res.n      = n;
         res.values = vals;
-        char msg[64];
-        snprintf(msg,
-                 sizeof(msg),
-                 "New matrix constructed with m = %ld, n = %ld",
-                 m,
-                 n);
-        Log_log(msg, LOG_INFO);
     }
     return res;
 }
 
 Matrix Matrix_new_vals(const size_t m, const size_t n, const double* init_vals)
 {
-    Matrix M;
-    M.values = calloc(m * n, sizeof(double));
+    Matrix M = Matrix_new(m, n, 0);
     memcpy(M.values, init_vals, m * n * sizeof(double));
     M.m = m;
     M.n = n;
@@ -114,12 +106,7 @@ Matrix Matrix_new_random_uniform(const size_t m,
 
 Matrix Matrix_zeros_like(const Matrix* M)
 {
-    Matrix m;
-    m.values = calloc(M->m * M->n, sizeof(double));
-    m.m      = M->m;
-    m.n      = M->n;
-
-    return m;
+    return Matrix_new(M->m, M->n, 0);
 }
 
 /**
@@ -207,6 +194,23 @@ int Matrix_get_at(double* target,
     return MATRIX_SUCCESS;
 }
 
+int Matrix_all_close(const Matrix* A, const Matrix* B)
+{
+    if (A->m != B->m || A->n != B->n)
+    {
+        return 0;
+    }
+
+    for (size_t i = 0; i < A->m * A->n; i++)
+    {
+        if (fabs(A->values[i] - B->values[i]) > EPS)
+        {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 void Matrix_free(Matrix* M)
 {
     free(M->values);
@@ -231,6 +235,66 @@ void Matrix_print(const Matrix* M)
     if (status != MATRIX_SUCCESS * m * n)
     {
         Log_log("An unknown problem at Matrix_print", LOG_WARNING);
+    }
+}
+
+double _Frobenius_helper(const Matrix* M)
+{
+    double s = 0.0;
+
+    for (size_t i = 0; i < M->m * M->n; i++)
+    {
+        s += M->values[i] * M->values[i];
+    }
+    return sqrt(s);
+}
+
+double _Spectral_helper(const Matrix* M)
+{
+    Vector b           = Vector_new_random_normal(M->n, 0, 1);
+    Vector tmp         = Vector_zeros_like(&b);
+    double lambda      = 0.0;
+    double lambda_prev = lambda;
+    double denom       = 1;
+
+    do
+    {
+        lambda_prev = lambda;
+        Matrix_Vector_dot(&tmp, M, &b);
+        Vector_copy(&b, &tmp);
+        double b_norm = Vector_norm(&b);
+        Vector_scale(&b, 1.0 / b_norm);
+
+        Matrix_Vector_dot(&tmp, M, &b);
+
+        Vector_dot(&lambda, &tmp, &b);
+        Vector_dot(&denom, &b, &b);
+        lambda /= denom;
+
+    } while (fabs(lambda - lambda_prev) > EPS);
+    Vector_free(&b);
+    Vector_free(&tmp);
+
+    return fabs(lambda);
+}
+
+double Matrix_norm(const Matrix* M, NormType nt)
+{
+    double result = 0;
+    switch (nt)
+    {
+        case FROBENIUS:
+        {
+            return _Frobenius_helper(M);
+        }
+        case SPECTRAL:
+        {
+            return _Spectral_helper(M);
+        }
+        default:
+        {
+            return 0;
+        }
     }
 }
 
@@ -261,6 +325,7 @@ int Matrix_sub(Matrix* target, const Matrix* M)
     }
     return MATRIX_SUCCESS;
 }
+
 void Matrix_scale(Matrix* target, const double lambda)
 {
     const size_t N = target->m * target->n;

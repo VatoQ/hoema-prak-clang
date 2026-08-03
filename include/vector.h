@@ -45,6 +45,13 @@ typedef struct
 //~- ------------------------- -~//
 ///////////////////////////////////
 
+/**
+ * @brief Inspect the target. If the shape already matches the desired result,
+ * it is left as is. Otherwise it will be deconstructed and reallocated.
+ *
+ * @param target Vector to be inspected.
+ * @param dim Required dimension.
+ */
 void Vector_prepare_target(Vector* target, const size_t dim);
 /**
  * @brief Constructs a new vector with a specified dimension and value.
@@ -63,6 +70,14 @@ Vector Vector_new(const size_t dim, const double init_val);
  * `init_vals[dim-1]` }.
  */
 Vector Vector_new_vals(const size_t dim, const double* init_vals);
+
+Vector Vector_new_random_normal(const size_t dim,
+                                const double mean,
+                                const double variance);
+
+Vector Vector_new_random_uniform(const size_t dim,
+                                 const double min,
+                                 const double max);
 /**
  * @brief Copies the vector `v` and returns a new vector.
  *
@@ -98,6 +113,9 @@ Vector Vector_ones(const size_t dim);
  * @param `v` Source vector to be copied.
  */
 void Vector_copy(Vector* target, const Vector* v);
+
+int Vector_all_close(const Vector* u, const Vector* v);
+
 double Vector_at(const Vector* v, const size_t index);
 /**
  * @brief Set the value of `v` of a specified `index` to `target`.
