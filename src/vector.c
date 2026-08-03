@@ -119,7 +119,6 @@ int Vector_all_close(const Vector* u, const Vector* v)
 void Vector_copy(Vector* target, const Vector* v)
 {
     Vector_prepare_target(target, v->dim);
-    target->values = calloc(v->dim, sizeof(double));
     memcpy(target->values, v->values, v->dim * sizeof(double));
     target->dim = v->dim;
 }
