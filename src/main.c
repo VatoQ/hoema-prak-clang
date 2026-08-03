@@ -15,5 +15,6 @@ int main(int argc, char* argv[])
     double spectral_norm = Matrix_norm(&M, SPECTRAL);
 
     printf("||M||_2 = %f\n", spectral_norm);
+    Matrix_free(&M);
     return 0;
 }
