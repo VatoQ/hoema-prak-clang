@@ -103,7 +103,7 @@ void test_matrix_inverse(void)
         }
     }
 
-    vals[0] = 10.0, vals[1] = 5.0, vals[2] = 3.0, vals[3] = 6.0;
+    vals[0] = 10.0, vals[1] = 5.0, vals[2] = 6.0, vals[3] = 3.0;
     Matrix_free(&M);
     Matrix_free(&M_inv);
     M      = Matrix_new_vals(2, 2, vals);
@@ -112,6 +112,21 @@ void test_matrix_inverse(void)
     TEST_CHECK(status == MATRIX_MATH_ERROR);
     Matrix_free(&M);
     Matrix_free(&M_inv);
+
+    M        = Matrix_new_random_normal(20, 20, 0, 1);
+    M_inv    = Matrix_zeros_like(&M);
+    Matrix B = Matrix_zeros_like(&M);
+    Vector v = Vector_ones(20);
+    Matrix I = Matrix_diag(&v);
+    status   = Matrix_inverse(&M_inv, &M);
+    TEST_CHECK(status == MATRIX_SUCCESS);
+    Matrix_Matrix_dot(&B, &M, &M_inv);
+    TEST_CHECK(Matrix_all_close(&I, &B));
+    Matrix_free(&M);
+    Matrix_free(&M_inv);
+    Matrix_free(&B);
+    Matrix_free(&I);
+    Vector_free(&v);
 }
 
 void test_matrix_set_get(void)
@@ -147,7 +162,9 @@ void test_matrix_copy(void)
     TEST_CHECK(B.n == 3);
 
     for (size_t i = 0; i < 6; i++)
+    {
         TEST_CHECK(fabs(B.values[i] - vals[i]) < EPS);
+    }
 
     Matrix_free(&A);
     Matrix_free(&B);
@@ -162,7 +179,9 @@ void test_matrix_zeros_like(void)
     TEST_CHECK(Z.n == 7);
 
     for (size_t i = 0; i < 5 * 7; i++)
+    {
         TEST_CHECK(Z.values[i] == 0.0);
+    }
 
     Matrix_free(&A);
     Matrix_free(&Z);
@@ -282,6 +301,21 @@ void test_matrix_matrix_dot_jordan(void)
     Matrix_free(&J);
 }
 
+void matrix_test_norm(void)
+{
+
+    double values[100] = { 0 };
+    for (size_t i = 0; i < 100; i++)
+    {
+        values[i] = 4 * i;
+    }
+    Vector v                 = Vector_new_vals(100, values);
+    Matrix M                 = Matrix_diag(&v);
+    const double max_lambda  = 4 * 99;
+    const double calc_lambda = Matrix_norm(&M, SPECTRAL);
+    TEST_CHECK(fabs(max_lambda - calc_lambda) < 1e-5);
+}
+
 TEST_LIST = { { "matrix_create", test_matrix_create },
               { "matrix_add", test_matrix_add },
               { "matrix_sub", test_matrix_sub },
@@ -290,9 +324,11 @@ TEST_LIST = { { "matrix_create", test_matrix_create },
               { "matrix_copy", test_matrix_copy },
               { "matrix_zeros_like", test_matrix_zeros_like },
               { "matrix_diag", test_matrix_diag },
+              { "test_matrix_inverse", test_matrix_inverse },
               { "matrix_diag_val", test_matrix_diag_val },
               { "matrix_free", test_matrix_free },
               { "matrix_vector_dot", test_matrix_vector_dot },
               { "matrix_matrix_dot", test_matrix_matrix_dot },
               { "matrix_matrix_dot_jordan", test_matrix_matrix_dot_jordan },
+              { "matrix_test_norm", matrix_test_norm },
               { NULL, NULL } };
