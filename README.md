@@ -53,26 +53,20 @@ Depending on the features used it may look like the following:
 Keep in mind that every feature uses the logging feature, 
 so every build must include `logging.c`
 
-## Using the provided build script
+## Using the provided `makefile`
 
-You can also use the small build script `launch.sh`, included in the repository:
-
+Build `main.c` from the commandline using the proided `makefile`:
 ```fish
-#!/bin/env fish
-gcc -O3 -march=native -ffast-math \ 
-    -Iinclude \
-    src/main.c src/vector.c src/matrix.c src/logging.c \
-    -o main -lm
-
-time ./main
-
+make
 ```
 
-Run with 
+Build any unit test by passing the name of the test file as an argument:
+
 ```fish
-./launch.sh
+make test_matrix
 ```
 
+This will make an executable called `test_matrix` in the project root.
 
 
 # License & Usage
