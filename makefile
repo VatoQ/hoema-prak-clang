@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS  = -O3 -march=native -ffast-math -Iinclude
+CFLAGS  = -O3 -march=native -ffast-math -Iinclude -fopenmp
 LDFLAGS = -lm
 
 SRC_DIR = src
@@ -19,7 +19,7 @@ TARGET = main
 
 all: $(TARGET)
 
-$(TARGET): $(OBJ)
+$(TARGET): $(CORE_OBJ) $(MAIN_OBJ)
 	$(CC) $(CFLAGS) $(CORE_OBJ) $(MAIN_OBJ) -o $(TARGET) $(LDFLAGS)
 
 # Compile core and main objects
@@ -36,7 +36,7 @@ src/%.o: src/%.c
 # ---------------------------------------------------------
 TESTS = $(basename $(notdir $(wildcard $(TEST_DIR)/*.c)))
 
-$(TESTS): %: $(TEST_DIR)/%.c $(OBJ)
+$(TESTS): %: $(TEST_DIR)/%.c $(CORE_OBJ)
 	$(CC) $(CFLAGS) $(CORE_OBJ) $< -o $@ $(LDFLAGS)
 
 clean:
