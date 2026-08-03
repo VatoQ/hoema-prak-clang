@@ -202,6 +202,18 @@ void Matrix_print(const Matrix* M);
 //~- ------------------------- -~//
 ///////////////////////////////////
 
+/**
+ * @brief Prepares `target` for further processing. A `target` with matching
+ * dimension will remain unchanged.
+ *
+ * @param `target` Target container for matrix operations.
+ * @param `m` Rows of target matrix.
+ * @param `n` Columns of target matrix.
+ */
+static void Matrix_prepare_target(Matrix* target,
+                                  const size_t m,
+                                  const size_t n);
+
 double Matrix_norm(const Matrix* M, NormType nt);
 
 /**
@@ -281,4 +293,11 @@ int Matrix_Matrix_dot_jordan(Matrix* target,
                              const Matrix* M1,
                              const Matrix* M2);
 
+int Matrix_QR(Matrix* Q, Matrix* R, const Matrix* A);
+
+int Matrix_eigvals(Vector* eigenvalues, const Matrix* M);
+
+int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b);
+
+int Matrix_Hessenberg(Matrix* H, const Matrix* A);
 #endif // MATRIX_H
