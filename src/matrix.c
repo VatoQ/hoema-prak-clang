@@ -251,15 +251,15 @@ double _Frobenius_helper(const Matrix* M)
 
 double _Spectral_helper(const Matrix* M)
 {
-    Vector b      = Vector_new_random_normal(M->n, 0, 1);
-    Vector tmp    = Vector_zeros_like(&b);
-    Vector b_prev = Vector_zeros_like(&b);
-    double lambda = 0.0;
-    double denom  = 1;
+    Vector b           = Vector_new_random_normal(M->n, 0, 1);
+    Vector tmp         = Vector_zeros_like(&b);
+    double lambda      = 0.0;
+    double lambda_prev = lambda;
+    double denom       = 1;
 
     do
     {
-        Vector_copy(&b_prev, &b);
+        lambda_prev = lambda;
         Matrix_Vector_dot(&tmp, M, &b);
         Vector_copy(&b, &tmp);
         double b_norm = Vector_norm(&b);
@@ -271,12 +271,11 @@ double _Spectral_helper(const Matrix* M)
         Vector_dot(&denom, &b, &b);
         lambda /= denom;
 
-    } while (!Vector_all_close(&b_prev, &b));
+    } while (fabs(lambda - lambda_prev) > EPS);
     Vector_free(&b);
-    Vector_free(&b_prev);
     Vector_free(&tmp);
 
-    return lambda;
+    return fabs(lambda);
 }
 
 double Matrix_norm(const Matrix* M, NormType nt)
