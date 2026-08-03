@@ -121,7 +121,7 @@ static void _diag_helper(Matrix* M, const size_t n, const double* val)
     int status = 0;
     for (size_t i = 0; i < n; i++)
     {
-        status += Matrix_set_at(M, i, i, val[i]);
+        M->values[i * M->n + i] = val[i];
     }
     if (status != MATRIX_SUCCESS * n)
     {
@@ -226,8 +226,8 @@ void Matrix_print(const Matrix* M)
     {
         for (size_t j = 0; j < n; j++)
         {
-            double val = 0;
-            status += Matrix_get_at(&val, M, i, j);
+            double val = M->values[i * M->n + j];
+            // status += Matrix_get_at(&val, M, i, j);
             printf("%f ", val);
         }
         printf("\n");
@@ -345,8 +345,8 @@ static int _invert_n_n_matrix(Matrix* target, const Matrix* M)
     // Phase one, make lower right triangle
     for (size_t m = 0; m < M->m; m++)
     {
-        double lambda;
-        Matrix_get_at(&lambda, &M_copy, m, m);
+        double lambda = M_copy.values[m * M_copy.n + m];
+        // Matrix_get_at(&lambda, &M_copy, m, m);
         lambda                  = 1.0 / lambda;
         double* row_vals        = M_copy.values + m * M->n;
         double* row_target_vals = target->values + m * M->n;
@@ -360,7 +360,8 @@ static int _invert_n_n_matrix(Matrix* target, const Matrix* M)
 
         for (size_t n = m + 1; n < M->n; n++)
         {
-            Matrix_get_at(&lambda, &M_copy, n, m);
+            // Matrix_get_at(&lambda, &M_copy, n, m);
+            lambda = M_copy.values[n * M_copy.n + m];
             Vector_scale(&row, lambda);
             Vector_scale(&row_target, lambda);
 
@@ -402,7 +403,8 @@ static int _invert_n_n_matrix(Matrix* target, const Matrix* M)
         memcpy(M_copy.values + m * M->n, row.values, M->n * sizeof(double));
         for (long n = m - 1; n >= 0; n--)
         {
-            Matrix_get_at(&lambda, &M_copy, n, m);
+            // Matrix_get_at(&lambda, &M_copy, n, m);
+            lambda = M_copy.values[n * M_copy.n + m];
             Vector_scale(&row, lambda);
             Vector_scale(&row_target, lambda);
 
@@ -442,10 +444,11 @@ int Matrix_inverse(Matrix* target, const Matrix* M)
     {
         double a, b, c, d;
         int status = 0;
-        status += Matrix_get_at(&a, M, 0, 0);
-        status += Matrix_get_at(&b, M, 0, 1);
-        status += Matrix_get_at(&c, M, 1, 0);
-        status += Matrix_get_at(&d, M, 1, 1);
+
+        a = M->values[0];
+        b = M->values[1];
+        c = M->values[2];
+        d = M->values[3];
         if (status != MATRIX_SUCCESS * 4)
         {
             Log_log("Dimension error in Matrix_inverse(), 2x2 case.",
@@ -491,17 +494,18 @@ int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
     Vector_prepare_target(target, DIM);
     int checksum = 0;
 
+#pragma omp parallel for
     for (size_t d = 0; d < DIM; d++)
     {
         double sum = 0.0;
+#pragma omp simd
         for (size_t n = 0; n < N; n++)
         {
-            double M_val;
-            checksum += Matrix_get_at(&M_val, M, d, n);
-            double V_val = Vector_at(v, n);
+            double M_val = M->values[d * M->n + n];
+            double V_val = v->values[n];
             sum += M_val * V_val;
         }
-        Vector_set_item(target, d, sum);
+        target->values[d] = sum;
     }
 
     if (checksum != DIM * N * MATRIX_SUCCESS)
@@ -528,18 +532,20 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
 
     for (size_t m = 0; m < target->m; m++)
     {
+#pragma omp parallel for
         for (size_t n = 0; n < target->n; n++)
         {
             double sum = 0.0;
 
+#pragma omp simd
             for (size_t o = 0; o < M1->n; o++)
             {
                 double a, b;
-                status += Matrix_get_at(&a, M1, m, o);
-                status += Matrix_get_at(&b, M2, o, n);
+                a = M1->values[m * M1->n + o];
+                b = M2->values[o * M2->n + n];
                 sum += a * b;
             }
-            Matrix_set_at(target, m, n, sum);
+            target->values[m * target->n + n] = sum;
         }
     }
     if (status != target->m * M1->n * 2 * MATRIX_SUCCESS)
@@ -561,7 +567,6 @@ int Matrix_jacobi(Matrix* target, const Vector* x, Vector (*f)(const Vector* x))
     Vector_copy(&x_eps, x);
     double fn_x, fn_x_eps;
 
-    int status = 0;
     for (size_t m = 0; m < M; m++)
     {
 
@@ -573,14 +578,8 @@ int Matrix_jacobi(Matrix* target, const Vector* x, Vector (*f)(const Vector* x))
             fn_x     = f_x.values[m];
             fn_x_eps = f_x_eps.values[m];
 
-            status +=
-              Matrix_set_at(target, m, n, (fn_x_eps - fn_x) / MATRIX_EPS);
+            target->values[m * target->n + n] = (fn_x_eps - fn_x) / MATRIX_EPS;
         }
-    }
-    if (status != M * N * MATRIX_SUCCESS)
-    {
-        Log_log("Index error occured during Matrix_jacobi()", LOG_ERROR);
-        return MATRIX_BASIC_ERROR;
     }
 
     return MATRIX_SUCCESS;
