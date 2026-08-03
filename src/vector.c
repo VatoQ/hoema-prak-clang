@@ -1,5 +1,6 @@
 #include "../include/vector.h"
 #include "../include/logging.h"
+#include "../include/prng.h"
 #include <assert.h>
 #include <math.h>
 #include <stdbool.h>
@@ -61,6 +62,32 @@ Vector Vector_new_vals(const size_t dim, const double* init_vals)
     return v;
 }
 
+Vector Vector_new_random_normal(const size_t dim,
+                                const double mean,
+                                const double variance)
+{
+    PRNG_State prng = PRNG_State_init(NO_SEED);
+    Vector v        = Vector_zeros(dim);
+    for (size_t n = 0; n < dim; n++)
+    {
+        v.values[n] = PRNG_State_normal(&prng, mean, variance);
+    }
+    return v;
+}
+
+Vector Vector_new_random_uniform(const size_t dim,
+                                 const double min,
+                                 const double max)
+{
+    PRNG_State prng = PRNG_State_init(NO_SEED);
+    Vector v        = Vector_zeros(dim);
+    for (size_t n = 0; n < dim; n++)
+    {
+        v.values[n] = PRNG_State_random_double_range(&prng, min, max);
+    }
+    return v;
+}
+
 Vector Vector_new_copy(const Vector* v)
 {
     Vector res;
@@ -72,13 +99,26 @@ Vector Vector_new_copy(const Vector* v)
     return res;
 }
 
+int Vector_all_close(const Vector* u, const Vector* v)
+{
+    if (v->dim != u->dim)
+    {
+        return 0;
+    }
+
+    for (size_t n = 0; n < u->dim; n++)
+    {
+        if (fabs(u->values[n] - v->values[n]) > EPS)
+        {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 void Vector_copy(Vector* target, const Vector* v)
 {
-    if (target->dim != 0)
-    {
-        Log_log("Non empty Vector deallocated in Vector_copy", LOG_WARNING);
-        Vector_free(target);
-    }
+    Vector_prepare_target(target, v->dim);
     target->values = calloc(v->dim, sizeof(double));
     memcpy(target->values, v->values, v->dim * sizeof(double));
     target->dim = v->dim;
