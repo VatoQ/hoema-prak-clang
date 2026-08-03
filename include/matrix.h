@@ -39,11 +39,6 @@
 //~- ---------------------- -~//
 ////////////////////////////////
 
-// #define MATRIX_MATH_SUCCESS 10
-// #define MATRIX_BASIC_SUCCESS 20
-// #define MATRIX_DIMENSION_ERROR -10
-// #define MATRIX_BASIC_ERROR -20
-// #define MATRIX_MATH_ERROR -30
 #define MATRIX_EPS 1e-4
 
 typedef enum
@@ -53,6 +48,12 @@ typedef enum
     MATRIX_MATH_ERROR      = 2,
     MATRIX_BASIC_ERROR     = 3,
 } MatrixStatus;
+
+typedef enum
+{
+    FROBENIUS,
+    SPECTRAL,
+} NormType;
 
 #include "vector.h"
 #include <stddef.h>
@@ -180,6 +181,8 @@ int Matrix_get_at(double* target,
                   const Matrix* M,
                   const size_t m,
                   const size_t n);
+
+int Matrix_all_close(const Matrix* A, const Matrix* B);
 /**
  * @brief Deallocate data within `M`. Sets `m` and `n` to `0`.
  *
@@ -198,6 +201,8 @@ void Matrix_print(const Matrix* M);
 //~-      Math  Functions      -~//
 //~- ------------------------- -~//
 ///////////////////////////////////
+
+double Matrix_norm(const Matrix* M, NormType nt);
 
 /**
  * @brief Add `M` to `target`. Equivalent to `target += M`.
