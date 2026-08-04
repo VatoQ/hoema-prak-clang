@@ -8,9 +8,16 @@
 #define TO true
 #define FROM false
 
-#define DFT_SCALAR 0
-#define DFT_PARALLEL 1
-#define FFT 2
+// #define DFT_SCALAR 0
+// #define DFT_PARALLEL 1
+// #define FFT 2
+
+typedef enum
+{
+    DFT_SCALAR,
+    DFT_PARALLEL,
+    FFT
+} FourierAlgorithm;
 
 typedef struct
 {
