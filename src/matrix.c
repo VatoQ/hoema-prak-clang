@@ -671,23 +671,44 @@ int Matrix_QR(Matrix* Q, Matrix* R, const Matrix* A)
     return MATRIX_SUCCESS;
 }
 
-int _eigvals_two(Vector* eigenvalues, const Matrix* M) {}
-
-double _wilkinson_shift(const Matrix* A, size_t active)
+int _eigvals_two(Vector* eigenvalues, const Matrix* M)
 {
-    size_t n = A->n;
-    size_t m = A->m;
-    double a = A->values[(active - 2) * n + (active - 2)];
-    double b = A->values[(active - 2) * n + (active - 1)];
-    double c = A->values[(active - 1) * n + (active - 2)];
-    double d = A->values[(active - 1) * n + (active - 1)];
+    const double a = M->values[0];
+    const double b = M->values[1];
+    const double c = M->values[2];
+    const double d = M->values[3];
 
-    double tr        = (a + d) / 2.0;
-    double det       = (a - d) / 2.0;
+    const double p     = -(a + d);
+    const double q     = a * d - b * c;
+    const double inner = 0.25 * p * p - q;
+    Vector_prepare_target(eigenvalues, 2);
+    if (inner < 0.0)
+    {
+        Log_log("complex eigenvalues encountered", LOG_WARNING);
+        return MATRIX_MATH_ERROR;
+    }
+
+    const double x1        = -p * 0.5 + sqrt(inner);
+    const double x2        = -p * 0.5 - sqrt(inner);
+    eigenvalues->values[0] = x1;
+    eigenvalues->values[1] = x2;
+    return MATRIX_SUCCESS;
+}
+
+double _wilkinson_shift(const Matrix* H, size_t active)
+{
+    size_t n = H->n;
+
+    double a = H->values[(active - 2) * n + (active - 2)];
+    double b = H->values[(active - 2) * n + (active - 1)];
+    double c = H->values[(active - 1) * n + (active - 2)];
+    double d = H->values[(active - 1) * n + (active - 1)];
+
+    double tr        = (a + d) * 0.5;
+    double det       = (a - d) * 0.5;
     double disc_term = det * det + b * c;
     if (disc_term < 0.0)
     {
-        // printf("neg disc_term: %f\n", disc_term);
         disc_term = 0.0;
     }
     double disc = sqrt(disc_term);
@@ -700,73 +721,91 @@ double _wilkinson_shift(const Matrix* A, size_t active)
 
 int _eigvals_big(Vector* eigenvalues, const Matrix* M)
 {
+    printf("Enter _eigvals_big with\n");
+    Matrix_print(M);
+    printf("\n");
 
     const size_t max_iters = 10000;
     const double eps       = 1e-12;
-    Matrix A               = Matrix_zeros_like(M);
-    printf("M:\n");
-    Matrix_print(M);
-    Matrix_Hessenberg(&A, M);
-    printf("Heisenberg(M):\n");
-    Matrix_print(&A);
+
+    Matrix H = Matrix_zeros_like(M);
+    Matrix_Hessenberg(&H, M); // Q^T M Q → upper Hessenberg
+    printf("Hessenberg Matrix: \n");
+    Matrix_print(&H);
     printf("\n");
-    Matrix Q = Matrix_zeros_like(M);
-    Matrix R = Matrix_zeros_like(M);
+    Matrix Q = Matrix_zeros_like(&H);
+    Matrix R = Matrix_zeros_like(&H);
 
-    size_t counter = 0;
+    size_t n      = H.n;
+    size_t active = n;
 
-    size_t active = A.n;
-    for (size_t i = 0; i < max_iters; i++)
+    size_t total_iters = 0;
+
+    while (active > 1)
     {
-        counter++;
-        size_t n   = A.n;
-        size_t m   = A.m;
-        double sub = fabs(A.values[(active - 1) * n + (active - 2)]);
-        if (sub < eps)
+        // printf("Active: %zu\n", active);
+        for (size_t iter = 0; iter < max_iters; iter++)
         {
-            active--;
-            // break;
-        }
-        double mu = _wilkinson_shift(&A, active);
-        // printf("mu: %f\n", mu);
-        for (size_t i = 0; i < A.n; i++)
-        {
-            A.values[i * A.n + i] -= mu;
-        }
+            total_iters++;
+            double sub = fabs(H.values[(active - 1) * n + (active - 2)]);
 
-        Matrix_QR(&Q, &R, &A);
-        Matrix_Matrix_dot(&A, &R, &Q);
-        for (size_t i = 0; i < A.n; i++)
-        {
-            A.values[i * A.n + i] += mu;
-        }
-
-        bool converged = true;
-        for (size_t i = 0; i < active - 1; i++)
-        {
-            if (fabs(A.values[(i + 1) * A.n + i]) > eps)
+            if (sub < eps)
             {
-                converged = false;
+                break;
+            }
+
+            double mu = _wilkinson_shift(&H, active);
+
+            // for (size_t i = 0; i < active; i++)
+            // {
+            //     H.values[i * n + i] -= mu;
+            // }
+
+            Matrix_QR(&Q, &R, &H);
+
+            Matrix_Matrix_dot(&H, &R, &Q);
+
+            // for (size_t i = 0; i < active; i++)
+            // {
+            //     H.values[i * n + i] += mu;
+            // }
+            bool converged = true;
+            for (size_t i = 0; i < active - 1; i++)
+            {
+                if (fabs(H.values[(i + 1) * n + i]) > eps)
+                {
+                    converged = false;
+                    break;
+                }
+            }
+            if (converged)
+            {
                 break;
             }
         }
-        if (converged)
-        {
-            break;
-            active--;
-        }
-    }
-    Matrix_print(&A);
-    printf("After %zu iterations!\n", counter);
-    Vector_prepare_target(eigenvalues, A.n);
-    for (size_t i = 0; i < A.n; i++)
-    {
-        eigenvalues->values[i] = A.values[i * A.n + i];
-    }
 
+        if (fabs(H.values[(active - 1) * n + (active - 2)]) < eps)
+        {
+            active--;
+            continue;
+        }
+        // else
+        // {
+        //     break;
+        // }
+    }
+    printf("After %zu iterations, got\n");
+    Matrix_print(&H);
+    printf("\n");
+
+    Vector_prepare_target(eigenvalues, n);
+    for (size_t i = 0; i < n; i++)
+    {
+        eigenvalues->values[i] = H.values[i * n + i];
+    }
     Matrix_free(&Q);
     Matrix_free(&R);
-    Matrix_free(&A);
+    Matrix_free(&H);
 
     return MATRIX_SUCCESS;
 }
@@ -800,6 +839,10 @@ int Matrix_Hessenberg(Matrix* H, const Matrix* A)
 {
     size_t m = A->m;
     size_t n = A->n;
+    if (n != m)
+    {
+        return MATRIX_DIMENSION_ERROR;
+    }
 
     Matrix_copy(H, A);
 
@@ -828,7 +871,6 @@ int Matrix_Hessenberg(Matrix* H, const Matrix* A)
         Vector_copy(&v, &x);
         Vector_scale(&e1, sign * normx);
         Vector_add(&v, &e1);
-
         Vector_free(&e1);
 
         double vnorm = Vector_norm(&v);
@@ -864,4 +906,78 @@ int Matrix_Hessenberg(Matrix* H, const Matrix* A)
         Vector_free(&x);
     }
     return MATRIX_SUCCESS;
+}
+
+void Matrix_QR_hessenberg(Matrix* Q, Matrix* R, Matrix* H, size_t active)
+{
+    size_t n = H->n;
+
+    // Initialize Q = I
+    for (size_t i = 0; i < n; i++)
+        for (size_t j = 0; j < n; j++)
+            Q->values[i * n + j] = (i == j ? 1.0 : 0.0);
+
+    // Copy H into R (we will transform R into upper triangular)
+    Matrix_copy(R, H);
+
+    for (size_t i = 0; i < active - 1; i++)
+    {
+        double a = R->values[i * n + i];
+        double b = R->values[(i + 1) * n + i];
+
+        if (fabs(b) < 1e-15)
+            continue;
+
+        // Compute Givens rotation
+        double r = hypot(a, b);
+        double c = a / r;
+        double s = -b / r;
+
+        // Apply Givens rotation to R (right multiplication)
+        for (size_t j = i; j < active; j++)
+        {
+            double t1                  = R->values[i * n + j];
+            double t2                  = R->values[(i + 1) * n + j];
+            R->values[i * n + j]       = c * t1 - s * t2;
+            R->values[(i + 1) * n + j] = s * t1 + c * t2;
+        }
+
+        // Apply Givens rotation to Q (accumulate Q)
+        for (size_t j = 0; j < active; j++)
+        {
+            double t1                  = Q->values[j * n + i];
+            double t2                  = Q->values[j * n + (i + 1)];
+            Q->values[j * n + i]       = c * t1 - s * t2;
+            Q->values[j * n + (i + 1)] = s * t1 + c * t2;
+        }
+    }
+}
+
+void Matrix_Matrix_dot_active(Matrix* H,
+                              const Matrix* R,
+                              const Matrix* Q,
+                              size_t active)
+{
+    size_t n = H->n;
+
+    Matrix tmp = Matrix_zeros_like(H);
+
+    for (size_t i = 0; i < active; i++)
+    {
+        for (size_t j = 0; j < active; j++)
+        {
+            double sum = 0.0;
+            for (size_t k = 0; k < active; k++)
+                sum += R->values[i * n + k] * Q->values[k * n + j];
+
+            tmp.values[i * n + j] = sum;
+        }
+    }
+
+    // Copy back only active block
+    for (size_t i = 0; i < active; i++)
+        for (size_t j = 0; j < active; j++)
+            H->values[i * n + j] = tmp.values[i * n + j];
+
+    Matrix_free(&tmp);
 }

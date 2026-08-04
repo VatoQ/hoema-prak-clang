@@ -300,4 +300,12 @@ int Matrix_eigvals(Vector* eigenvalues, const Matrix* M);
 int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b);
 
 int Matrix_Hessenberg(Matrix* H, const Matrix* A);
+
+void Matrix_QR_hessenberg(Matrix* Q, Matrix* R, Matrix* H, size_t active);
+
+void Matrix_Matrix_dot_active(Matrix* H,
+                              const Matrix* R,
+                              const Matrix* Q,
+                              size_t active);
+
 #endif // MATRIX_H
