@@ -284,6 +284,12 @@ int Matrix_jacobi(Matrix* target,
                   const Vector* x,
                   Vector (*f)(const Vector* x));
 
+int Matrix_Vector_solve(Vector* target, const Matrix* M, const Vector* v);
+
+int Matrix_Matrix_solve(Matrix* target, const Matrix* M, const Matrix* v);
+
+int Matrix_column_pivot(Matrix* A, size_t k, size_t* P);
+
 /**
  * @brief Symmetrizes the product of two symmetric matrices. Used to turn
  * symmetric matrices into a ring. Results in \[target=0.5*(M1*M2 + M2*M1)\]
