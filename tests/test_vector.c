@@ -259,6 +259,20 @@ void test_vector_gradient_minimize(void)
     Vector_free(&out);
 }
 
+void test_vector_sort(void)
+{
+    const size_t N = 2000;
+    Vector v       = Vector_new_random_uniform(N, 0, 1);
+    Vector_sort_inplace(&v);
+
+    for (size_t i = 0; i < N - 1; i++)
+    {
+        TEST_CHECK(v.values[i] <= v.values[i + 1]);
+    }
+
+    Vector_free(&v);
+}
+
 TEST_LIST = { { "vector_create", test_vector_create },
               { "vector_new_vals", test_vector_new_vals },
               { "vector_new_copy", test_vector_new_copy },
@@ -274,4 +288,5 @@ TEST_LIST = { { "vector_create", test_vector_create },
               { "vector_gradient", test_vector_gradient },
               { "vector_gradient_maximize", test_vector_gradient_maximize },
               { "vector_gradient_minimize", test_vector_gradient_minimize },
+              { "test_vector_sort", test_vector_sort },
               { NULL, NULL } };
