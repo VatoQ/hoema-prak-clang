@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 
 /**
  * @brief Check status of a given vector.
@@ -230,6 +231,130 @@ double Vector_min(const Vector* v)
         }
     }
     return min;
+}
+
+void _insertion_sort(Vector* v, size_t low, size_t high)
+{
+    for (size_t i = low + 1; i <= high; ++i)
+    {
+        const double key = v->values[i];
+        ssize_t j        = i - 1;
+
+        while (j >= (ssize_t)low && v->values[j] > key)
+        {
+            v->values[j + 1] = v->values[j];
+            j--;
+        }
+        v->values[j + 1] = key;
+    }
+}
+
+void _swap(Vector* v, const size_t i, const size_t j)
+{
+    double tmp   = v->values[i];
+    v->values[i] = v->values[j];
+    v->values[j] = tmp;
+}
+
+void _heapify(Vector* v, size_t low, const size_t n, const size_t i)
+{
+    size_t largest = i;
+    size_t l       = 2 * i + 1;
+    size_t r       = 2 * i + 2;
+    if (l < n && v->values[l] > v->values[largest])
+    {
+        largest = l;
+    }
+    if (r < n && v->values[r] > v->values[largest])
+    {
+        largest = r;
+    }
+
+    if (largest != i)
+    {
+        // swap
+        _swap(v, low + i, low + largest);
+
+        _heapify(v, low, n, largest);
+    }
+}
+
+void _heapsort(Vector* v, size_t low, size_t high)
+{
+    const size_t n = high - low + 1;
+
+    for (ssize_t i = n / 2 - 1; i >= low; i--)
+    {
+        _heapify(v, low, n, i);
+    }
+
+    for (ssize_t i = n - 1; i > low; i--)
+    {
+        _swap(v, 0, i);
+
+        _heapify(v, low, i, 0);
+    }
+}
+
+size_t _partition(Vector* v, size_t low, size_t high)
+{
+    double pivot = v->values[high];
+    size_t i     = low - 1;
+
+    for (size_t j = low; j <= high - 1; j++)
+    {
+        if (v->values[j] < pivot)
+        {
+            i++;
+            _swap(v, i, j);
+        }
+    }
+
+    _swap(v, i + 1, high);
+    return i + 1;
+}
+
+void _introsort(Vector* v, size_t low, size_t high, int depth_limit)
+{
+    if (low >= high)
+    {
+        return;
+    }
+    const size_t n = high - low + 1;
+    if (n <= 32)
+    {
+        _insertion_sort(v, low, high);
+        return;
+    }
+    if (depth_limit == 0)
+    {
+        _heapsort(v, low, high);
+        return;
+    }
+    else
+    {
+        const size_t p = _partition(v, low, high);
+
+        _introsort(v, low, p - 1, depth_limit - 1);
+        _introsort(v, p + 1, high, depth_limit - 1);
+    }
+}
+
+int Vector_sort_inplace(Vector* v)
+{
+    if (v->dim == 0)
+    {
+        return VECTOR_SUCCESS;
+    }
+    int depth_limit = 2 * floor(log2(v->dim));
+    _introsort(v, 0, v->dim - 1, depth_limit);
+    return VECTOR_SUCCESS;
+}
+
+int Vector_sort(Vector* target, const Vector* v)
+{
+    Vector_copy(target, v);
+    return Vector_sort_inplace(target);
 }
 
 double Vector_norm(const Vector* v)

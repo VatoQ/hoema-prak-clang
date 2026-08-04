@@ -171,6 +171,10 @@ double Vector_max(const Vector* v);
  */
 double Vector_min(const Vector* v);
 
+int Vector_sort_inplace(Vector* v);
+
+int Vector_sort(Vector* target, const Vector* v);
+
 /////////////////////////////////////////
 //~- ------------------------------ -~//
 //~-      Mathematic Functions      -~//
