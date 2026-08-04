@@ -211,6 +211,32 @@ void Matrix_free(Matrix* M)
     M->m = 0, M->n = 0;
 }
 
+double Matrix_max(const Matrix* M)
+{
+    double max = -INFINITY;
+    for (int i = 0; i < M->m * M->n; i++)
+    {
+        if (M->values[i] > max)
+        {
+            max = M->values[i];
+        }
+    }
+    return max;
+}
+
+double Matrix_min(const Matrix* M)
+{
+    double min = INFINITY;
+    for (int i = 0; i < M->m * M->n; i++)
+    {
+        if (M->values[i] < min)
+        {
+            min = M->values[i];
+        }
+    }
+    return min;
+}
+
 void Matrix_print(const Matrix* M)
 {
     const size_t m = M->m, n = M->n;
@@ -244,33 +270,18 @@ double _Frobenius_helper(const Matrix* M)
 
 double _Spectral_helper(const Matrix* M)
 {
-    Vector b           = Vector_new_random_normal(M->n, 0, 1);
-    double b_norm      = Vector_norm(&b);
-    Vector tmp         = Vector_zeros_like(&b);
-    double lambda      = 0.0;
-    double lambda_prev = lambda;
-    double denom       = 1;
-    Vector_scale(&b, 1 / b_norm);
-
-    do
+    Vector eigvals = Vector_zeros(M->n);
+    Matrix_eigvals(&eigvals, M);
+    double max = -INFINITY;
+    for (size_t i = 0; i < eigvals.dim; i++)
     {
-        lambda_prev = lambda;
-        Matrix_Vector_dot(&tmp, M, &b);
-        Vector_copy(&b, &tmp);
-        double b_norm = Vector_norm(&b);
-        Vector_scale(&b, 1.0 / b_norm);
-
-        Matrix_Vector_dot(&tmp, M, &b);
-
-        Vector_dot(&lambda, &tmp, &b);
-        Vector_dot(&denom, &b, &b);
-        lambda /= denom;
-
-    } while (fabs(lambda - lambda_prev) > EPS);
-    Vector_free(&b);
-    Vector_free(&tmp);
-
-    return fabs(lambda);
+        if (fabs(eigvals.values[i]) > max)
+        {
+            max = fabs(eigvals.values[i]);
+        }
+    }
+    Vector_free(&eigvals);
+    return max;
 }
 
 double Matrix_norm(const Matrix* M, NormType nt)
@@ -578,6 +589,127 @@ int Matrix_jacobi(Matrix* target, const Vector* x, Vector (*f)(const Vector* x))
     return MATRIX_SUCCESS;
 }
 
+int Matrix_Vector_solve(Vector* target, const Matrix* M, const Vector* v)
+{
+    if (M->n != v->dim || M->m != M->n)
+    {
+        return MATRIX_DIMENSION_ERROR;
+    }
+    Matrix M_copy = Matrix_new(M->m, M->n, 0);
+    Matrix_copy(&M_copy, M);
+    Vector_copy(target, v);
+
+    // Phase one
+    for (size_t m = 0; m < M->m; m++)
+    {
+        double lambda    = 1.0 / M_copy.values[m * M_copy.n + m];
+        double* row_vals = M_copy.values + m * M_copy.n;
+        Vector row       = Vector_new_vals(M->n, row_vals);
+        Vector_scale(&row, lambda);
+        memcpy(
+          M_copy.values + m * M_copy.n, row.values, M_copy.n * sizeof(double));
+
+        target->values[m] *= lambda;
+        double target_val = target->values[m];
+
+        for (size_t n = m + 1; n < M->m; n++)
+        {
+            lambda = M_copy.values[n * M_copy.n + m];
+            Vector_scale(&row, lambda);
+            target_val *= lambda;
+            row_vals     = M_copy.values + n * M->n;
+            Vector row_n = Vector_new_vals(M_copy.n, row_vals);
+            Vector_sub(&row_n, &row);
+
+            memcpy(M_copy.values + n * M_copy.n,
+                   row_n.values,
+                   M->n * sizeof(double));
+            target->values[n] -= target_val;
+
+            Vector_scale(&row, 1 / lambda);
+            target_val /= lambda;
+
+            Vector_free(&row_n);
+        }
+        Vector_free(&row);
+    }
+
+    // Phase two
+    for (long m = M_copy.m - 1; m >= 0; m--)
+    {
+        double lambda;
+        double* row_vals  = M_copy.values + m * M_copy.n;
+        Vector row        = Vector_new_vals(M->n, row_vals);
+        double target_val = target->values[m];
+        for (long n = m - 1; n >= 0; n--)
+        {
+            lambda = M_copy.values[n * M_copy.n + m];
+            Vector_scale(&row, lambda);
+            target_val *= lambda;
+
+            row_vals     = M_copy.values + n * M->n;
+            Vector row_n = Vector_new_vals(M_copy.n, row_vals);
+            Vector_sub(&row_n, &row);
+            memcpy(M_copy.values + n * M_copy.n,
+                   row_n.values,
+                   M_copy.n * sizeof(double));
+            target->values[n] -= target_val;
+
+            Vector_scale(&row, 1 / lambda);
+            target_val /= lambda;
+
+            Vector_free(&row_n);
+        }
+        Vector_free(&row);
+    }
+    Matrix_free(&M_copy);
+    return MATRIX_SUCCESS;
+}
+
+int Matrix_column_pivot(Matrix* A, size_t k, size_t* P)
+{
+    size_t n = A->n;
+    size_t m = A->m;
+
+    if (k >= n)
+        return MATRIX_DIMENSION_ERROR;
+
+    // Find column with largest norm among k..n-1
+    double best_norm = -INFINITY;
+    size_t best_j    = k;
+
+    for (size_t j = k; j < n; j++)
+    {
+        double norm = 0.0;
+        for (size_t i = 0; i < m; i++)
+            norm += A->values[i * n + j] * A->values[i * n + j];
+
+        if (norm > best_norm)
+        {
+            best_norm = norm;
+            best_j    = j;
+        }
+    }
+
+    // Swap columns k and best_j
+    if (best_j != k)
+    {
+        for (size_t i = 0; i < m; i++)
+        {
+            double tmp                = A->values[i * n + k];
+            A->values[i * n + k]      = A->values[i * n + best_j];
+            A->values[i * n + best_j] = tmp;
+        }
+
+        // Update permutation vector
+        size_t tmp = P[k];
+        P[k]       = P[best_j];
+        P[best_j]  = tmp;
+    }
+
+    return MATRIX_SUCCESS;
+}
+
 int Matrix_Matrix_dot_jordan(Matrix* target, const Matrix* M1, const Matrix* M2)
 {
     if (M1->m != M1->n || M2->m != M2->n || M1->m != M2->m)
@@ -789,12 +921,12 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M)
             active--;
             continue;
         }
-        // else
-        // {
-        //     break;
-        // }
+        else
+        {
+            break;
+        }
     }
-    printf("After %zu iterations, got\n");
+    printf("After %zu iterations, got\n", total_iters);
     Matrix_print(&H);
     printf("\n");
 

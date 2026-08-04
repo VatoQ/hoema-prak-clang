@@ -204,12 +204,41 @@ void Vector_print(Vector* v)
     printf(")");
 }
 
+double Vector_max(const Vector* v)
+{
+    double max = -INFINITY;
+
+    for (size_t i = 0; i < v->dim; i++)
+    {
+        if (v->values[i] > max)
+        {
+            max = v->values[i];
+        }
+    }
+    return max;
+}
+
+double Vector_min(const Vector* v)
+{
+    double min = INFINITY;
+
+    for (size_t i = 0; i < v->dim; i++)
+    {
+        if (v->values[i] < min)
+        {
+            min = v->values[i];
+        }
+    }
+    return min;
+}
+
 double Vector_norm(const Vector* v)
 {
-    double sum = 0.0;
+    double sum                = 0.0;
+    double* restrict v_values = v->values;
     for (size_t n = 0; n < v->dim; n++)
     {
-        sum += v->values[n] * v->values[n];
+        sum += v_values[n] * v_values[n];
     }
 
     return sqrt(sum);
@@ -240,11 +269,14 @@ int Vector_dot(double* target, const Vector* u, const Vector* v)
         return VECTOR_DIMENSION_ERROR;
     }
 
-    double s = 0.0;
+    double s                  = 0.0;
+    double* restrict u_values = u->values;
+    double* restrict v_values = v->values;
 
+#pragma omp simd
     for (size_t i = 0; i < u->dim; i++)
     {
-        s += u->values[i] * v->values[i];
+        s += u_values[i] * v_values[i];
     }
     *target = s;
     return VECTOR_SUCCESS;

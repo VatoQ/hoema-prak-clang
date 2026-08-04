@@ -196,6 +196,10 @@ void Matrix_free(Matrix* M);
  */
 void Matrix_print(const Matrix* M);
 
+double Matrix_max(const Matrix* M);
+
+double Matrix_min(const Matrix* M);
+
 ///////////////////////////////////
 //~- ------------------------- -~//
 //~-      Math  Functions      -~//
@@ -279,6 +283,12 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2);
 int Matrix_jacobi(Matrix* target,
                   const Vector* x,
                   Vector (*f)(const Vector* x));
+
+int Matrix_Vector_solve(Vector* target, const Matrix* M, const Vector* v);
+
+int Matrix_Matrix_solve(Matrix* target, const Matrix* M, const Matrix* v);
+
+int Matrix_column_pivot(Matrix* A, size_t k, size_t* P);
 
 /**
  * @brief Symmetrizes the product of two symmetric matrices. Used to turn

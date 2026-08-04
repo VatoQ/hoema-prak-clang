@@ -155,6 +155,9 @@ void Vector_free(Vector* v);
  */
 void Vector_print(Vector* v);
 
+double Vector_max(const Vector* v);
+double Vector_min(const Vector* v);
+
 /////////////////////////////////////////
 //~- ------------------------------ -~//
 //~-      Mathematic Functions      -~//
