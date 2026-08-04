@@ -211,6 +211,31 @@ void Matrix_free(Matrix* M)
     M->m = 0, M->n = 0;
 }
 
+double Matrix_max(const Matrix* M)
+{
+    double max = -INFINITY;
+    for (int i = 0; i < M->m * M->n; i++)
+    {
+        if (M->values[i] > max)
+        {
+            max = M->values[i];
+        }
+    }
+    return max;
+}
+
+double Matrix_min(const Matrix* M)
+{
+    double min = INFINITY;
+    for (int i = 0; i < M->m * M->n; i++)
+    {
+        if (M->values[i] < min)
+        {
+            min = M->values[i];
+        }
+    }
+    return min;
+}
 void Matrix_print(const Matrix* M)
 {
     const size_t m = M->m, n = M->n;
@@ -244,33 +269,18 @@ double _Frobenius_helper(const Matrix* M)
 
 double _Spectral_helper(const Matrix* M)
 {
-    Vector b           = Vector_new_random_normal(M->n, 0, 1);
-    double b_norm      = Vector_norm(&b);
-    Vector tmp         = Vector_zeros_like(&b);
-    double lambda      = 0.0;
-    double lambda_prev = lambda;
-    double denom       = 1;
-    Vector_scale(&b, 1 / b_norm);
-
-    do
+    Vector eigvals = Vector_zeros(M->n);
+    Matrix_eigvals(&eigvals, M);
+    double max = -INFINITY;
+    for (size_t i = 0; i < eigvals.dim; i++)
     {
-        lambda_prev = lambda;
-        Matrix_Vector_dot(&tmp, M, &b);
-        Vector_copy(&b, &tmp);
-        double b_norm = Vector_norm(&b);
-        Vector_scale(&b, 1.0 / b_norm);
-
-        Matrix_Vector_dot(&tmp, M, &b);
-
-        Vector_dot(&lambda, &tmp, &b);
-        Vector_dot(&denom, &b, &b);
-        lambda /= denom;
-
-    } while (fabs(lambda - lambda_prev) > EPS);
-    Vector_free(&b);
-    Vector_free(&tmp);
-
-    return fabs(lambda);
+        if (fabs(eigvals.values[i]) > max)
+        {
+            max = fabs(eigvals.values[i]);
+        }
+    }
+    Vector_free(&eigvals);
+    return max;
 }
 
 double Matrix_norm(const Matrix* M, NormType nt)
@@ -789,10 +799,10 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M)
             active--;
             continue;
         }
-        // else
-        // {
-        //     break;
-        // }
+        else
+        {
+            break;
+        }
     }
     printf("After %zu iterations, got\n", total_iters);
     Matrix_print(&H);

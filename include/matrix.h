@@ -196,6 +196,10 @@ void Matrix_free(Matrix* M);
  */
 void Matrix_print(const Matrix* M);
 
+double Matrix_max(const Matrix* M);
+
+double Matrix_min(const Matrix* M);
+
 ///////////////////////////////////
 //~- ------------------------- -~//
 //~-      Math  Functions      -~//
