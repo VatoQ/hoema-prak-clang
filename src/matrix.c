@@ -820,8 +820,8 @@ int _eigvals_two(Vector* eigenvalues, const Matrix* M)
         return MATRIX_MATH_ERROR;
     }
 
-    const double x1        = -p * 0.5 + sqrt(inner);
-    const double x2        = -p * 0.5 - sqrt(inner);
+    const double x1        = -p * 0.5 - sqrt(inner);
+    const double x2        = -p * 0.5 + sqrt(inner);
     eigenvalues->values[0] = x1;
     eigenvalues->values[1] = x2;
     return MATRIX_SUCCESS;
@@ -935,6 +935,7 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M)
     {
         eigenvalues->values[i] = H.values[i * n + i];
     }
+    Vector_sort_inplace(eigenvalues);
     Matrix_free(&Q);
     Matrix_free(&R);
     Matrix_free(&H);

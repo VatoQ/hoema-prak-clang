@@ -284,9 +284,25 @@ int Matrix_jacobi(Matrix* target,
                   const Vector* x,
                   Vector (*f)(const Vector* x));
 
+/**
+ * @brief Solve the quation \[Mx=v\], \[x\] being stored in `target`.
+ *
+ * @param `target` Store the vector found to satisfy the equation here.
+ * @param `M` Matrix of the equation.
+ * @param `v` Right hand side vector.
+ * @return Status code.
+ */
 int Matrix_Vector_solve(Vector* target, const Matrix* M, const Vector* v);
 
-int Matrix_Matrix_solve(Matrix* target, const Matrix* M, const Matrix* v);
+/**
+ * @brief Solve the quation \[MX=N\], \[X\] being stored in `target`.
+ *
+ * @param `target` Store the matrix found to satisfy the equation here.
+ * @param `M` Matrix of the equation.
+ * @param `N` Right hand side vector.
+ * @return Status code.
+ */
+int Matrix_Matrix_solve(Matrix* target, const Matrix* M, const Matrix* N);
 
 int Matrix_column_pivot(Matrix* A, size_t k, size_t* P);
 
@@ -303,12 +319,44 @@ int Matrix_Matrix_dot_jordan(Matrix* target,
                              const Matrix* M1,
                              const Matrix* M2);
 
+/**
+ * @brief QR factorization, where `Q` is a unitary matrix and `R` a upperhand
+ * triangle matrix.
+ *
+ * @param Q Target for Q.
+ * @param R Target for R.
+ * @param A Matrix to be factorized.
+ * @return Status Code.
+ */
 int Matrix_QR(Matrix* Q, Matrix* R, const Matrix* A);
 
+/**
+ * @brief Store the eigenvalues of `M` to `eigenvalues`.
+ *
+ * @param eigenvalues Target container.
+ * @param M Matrix to inspect.
+ * @return Status Code.
+ */
 int Matrix_eigvals(Vector* eigenvalues, const Matrix* M);
 
+/**
+ * @brief Compute the outer product of two given vectors into the matrix
+ * `target`.
+ *
+ * @param target Target container.
+ * @param a Left hand vector.
+ * @param b Right hand vector.
+ * @return Status code.
+ */
 int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b);
 
+/**
+ * @brief Compute the Hassenberg reduction of the matrix `A` into `H`.
+ *
+ * @param H Target container.
+ * @param A Matrix to be reduced.
+ * @return Status code.
+ */
 int Matrix_Hessenberg(Matrix* H, const Matrix* A);
 
 void Matrix_QR_hessenberg(Matrix* Q, Matrix* R, Matrix* H, size_t active);
