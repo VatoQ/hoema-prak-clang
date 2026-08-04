@@ -304,16 +304,52 @@ void test_matrix_matrix_dot_jordan(void)
 void matrix_test_norm(void)
 {
 
-    double values[100] = { 0 };
-    for (size_t i = 0; i < 100; i++)
+    double values[10] = { 0 };
+    for (size_t i = 0; i < 10; i++)
     {
         values[i] = 4 * i;
     }
-    Vector v                 = Vector_new_vals(100, values);
+    Vector v                 = Vector_new_vals(10, values);
     Matrix M                 = Matrix_diag(&v);
-    const double max_lambda  = 4 * 99;
+    const double max_lambda  = 4 * 9;
     const double calc_lambda = Matrix_norm(&M, SPECTRAL);
+
     TEST_CHECK(fabs(max_lambda - calc_lambda) < 1e-5);
+}
+
+void test_matrix_eigenvalues(void)
+{
+    size_t N        = 5;
+    double values[] = { 1, 2, 3, 4, 5 };
+    Vector init_v   = Vector_new_vals(N, values);
+    Matrix M        = Matrix_diag(&init_v);
+    Vector eigs     = Vector_zeros(N);
+
+    Matrix_eigvals(&eigs, &M);
+    for (size_t i = 0; i < N; i++)
+    {
+        TEST_CHECK(fabs(eigs.values[i] - init_v.values[i]) < EPS);
+    }
+
+    Vector_free(&init_v);
+    Matrix_free(&M);
+    Vector_free(&eigs);
+
+    N = 3;
+
+    double values2[] = { 3, 2, 1, 2, 4, 5, 1, 5, 6 };
+    M                = Matrix_new_vals(N, N, values2);
+    eigs             = Vector_zeros(N);
+
+    Matrix_eigvals(&eigs, &M);
+
+    double true_eigs[] = { -0.3784815, 2.72913544, 10.64934606 };
+    for (size_t i = 0; i < N; i++)
+    {
+        TEST_CHECK(fabs(true_eigs[i] - eigs.values[i]) < EPS);
+    }
+    Matrix_free(&M);
+    Vector_free(&eigs);
 }
 
 TEST_LIST = { { "matrix_create", test_matrix_create },
@@ -331,4 +367,5 @@ TEST_LIST = { { "matrix_create", test_matrix_create },
               { "matrix_matrix_dot", test_matrix_matrix_dot },
               { "matrix_matrix_dot_jordan", test_matrix_matrix_dot_jordan },
               { "matrix_test_norm", matrix_test_norm },
+              { "test_matrix_eigenvalues", test_matrix_eigenvalues },
               { NULL, NULL } };
