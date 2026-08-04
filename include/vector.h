@@ -155,7 +155,20 @@ void Vector_free(Vector* v);
  */
 void Vector_print(Vector* v);
 
+/**
+ * @brief Calculate the maximum item in `v`.
+ *
+ * @param v Vector to be inspected.
+ * @return Maximum value stored in `v`.
+ */
 double Vector_max(const Vector* v);
+
+/**
+ * @brief Calculate the minimum item in `v`.
+ *
+ * @param v Vector to be inspected.
+ * @return Minimum value stored in `v`.
+ */
 double Vector_min(const Vector* v);
 
 /////////////////////////////////////////
