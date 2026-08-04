@@ -15,9 +15,9 @@ toolkit with a clear design philosophy:
 - [x] matrix inversion for arbitrary n×n matrices
 - [x] a minimal logging system
 - [x] Pseudo random number generation.
-- [ ] a small unit‑testing setup using Acutest
+- [x] a small unit‑testing setup using Acutest
+- [x] Fourier transformations (DFT, FFT)
 - [ ] Differential equations
-- [ ] Fourier transformations (DFT, FFT)
 - [ ] Stochastics (Monte Carlo simulations, random sampling)
 
 
