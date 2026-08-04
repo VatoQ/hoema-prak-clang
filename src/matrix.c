@@ -794,7 +794,7 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M)
         //     break;
         // }
     }
-    printf("After %zu iterations, got\n");
+    printf("After %zu iterations, got\n", total_iters);
     Matrix_print(&H);
     printf("\n");
 
