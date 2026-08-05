@@ -3,6 +3,7 @@
 #include "../include/prng.h"
 #include "../include/vector.h"
 #include <math.h>
+#include <omp.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -246,7 +247,6 @@ void Matrix_print(const Matrix* M)
         for (size_t j = 0; j < n; j++)
         {
             double val = M->values[i * M->n + j];
-            // status += Matrix_get_at(&val, M, i, j);
             printf("%f ", val);
         }
         printf("\n");
@@ -272,6 +272,7 @@ double _Spectral_helper(const Matrix* M)
 {
     Vector eigvals = Vector_zeros(M->n);
     Matrix_eigvals(&eigvals, M);
+
     double max = -INFINITY;
     for (size_t i = 0; i < eigvals.dim; i++)
     {
@@ -280,6 +281,7 @@ double _Spectral_helper(const Matrix* M)
             max = fabs(eigvals.values[i]);
         }
     }
+
     Vector_free(&eigvals);
     return max;
 }
@@ -593,6 +595,7 @@ int Matrix_Vector_solve(Vector* target, const Matrix* M, const Vector* v)
 {
     if (M->n != v->dim || M->m != M->n)
     {
+        Log_log("Dimension error in Matrix_Vector_solve()", LOG_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
     Matrix M_copy = Matrix_new(M->m, M->n, 0);
@@ -672,7 +675,10 @@ int Matrix_column_pivot(Matrix* A, size_t k, size_t* P)
     size_t m = A->m;
 
     if (k >= n)
+    {
+        Log_log("Index out of range in Matrix_column_pivot()", LOG_ERROR);
         return MATRIX_DIMENSION_ERROR;
+    }
 
     // Find column with largest norm among k..n-1
     double best_norm = -INFINITY;
@@ -853,18 +859,11 @@ double _wilkinson_shift(const Matrix* H, size_t active)
 
 int _eigvals_big(Vector* eigenvalues, const Matrix* M)
 {
-    printf("Enter _eigvals_big with\n");
-    Matrix_print(M);
-    printf("\n");
-
     const size_t max_iters = 10000;
     const double eps       = 1e-12;
 
     Matrix H = Matrix_zeros_like(M);
     Matrix_Hessenberg(&H, M); // Q^T M Q → upper Hessenberg
-    printf("Hessenberg Matrix: \n");
-    Matrix_print(&H);
-    printf("\n");
     Matrix Q = Matrix_zeros_like(&H);
     Matrix R = Matrix_zeros_like(&H);
 
@@ -875,7 +874,6 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M)
 
     while (active > 1)
     {
-        // printf("Active: %zu\n", active);
         for (size_t iter = 0; iter < max_iters; iter++)
         {
             total_iters++;
@@ -926,10 +924,6 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M)
             break;
         }
     }
-    printf("After %zu iterations, got\n", total_iters);
-    Matrix_print(&H);
-    printf("\n");
-
     Vector_prepare_target(eigenvalues, n);
     for (size_t i = 0; i < n; i++)
     {
