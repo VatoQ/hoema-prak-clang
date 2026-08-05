@@ -58,6 +58,13 @@ size_t PRNG_State_random(PRNG_State* prng)
     return z;
 }
 
+ssize_t PRNG_State_random_range(PRNG_State* prng, ssize_t low, ssize_t high)
+{
+    ssize_t rand    = PRNG_State_random(prng);
+    const ssize_t n = high - low;
+    return rand % n + low;
+}
+
 double PRNG_State_random_double(PRNG_State* prng)
 {
     const size_t randbits = PRNG_State_random(prng);
