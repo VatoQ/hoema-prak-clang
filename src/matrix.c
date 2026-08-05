@@ -644,16 +644,18 @@ int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
     int checksum              = 0;
     double* restrict M_values = M->values;
     double* restrict v_values = v->values;
+    double sum                = 0.0;
+    double M_val, V_val;
 
 #pragma omp parallel for
     for (size_t d = 0; d < DIM; d++)
     {
-        double sum = 0.0;
+        sum = 0.0;
 #pragma omp simd
         for (size_t n = 0; n < N; n++)
         {
-            double M_val = M_values[d * M->n + n];
-            double V_val = v_values[n];
+            M_val = M_values[d * M->n + n];
+            V_val = v_values[n];
             sum += M_val * V_val;
         }
         target->values[d] = sum;
@@ -682,18 +684,19 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
     double* restrict M1_values     = M1->values;
     double* restrict M2_values     = M2->values;
     double* restrict target_values = target->values;
+    double sum                     = 0.0;
+    double a, b;
 
     for (size_t m = 0; m < target->m; m++)
     {
 #pragma omp parallel for
         for (size_t n = 0; n < target->n; n++)
         {
-            double sum = 0.0;
+            sum = 0.0;
 
 #pragma omp simd
             for (size_t o = 0; o < M1->n; o++)
             {
-                double a, b;
                 a = M1_values[m * M1->n + o];
                 b = M2_values[o * M2->n + n];
                 sum += a * b;
@@ -881,18 +884,12 @@ int Matrix_Matrix_dot_jordan(Matrix* target, const Matrix* M1, const Matrix* M2)
 
 int Matrix_QR(Matrix* Q, Matrix* R, const Matrix* A)
 {
-    // Matrix_prepare_target(Q, A->m, A->n);
-    // Matrix_prepare_target(R, A->m, A->n);
-    // Matrix outer = Matrix_new(A->n, A->n, 0);
     size_t m = A->m;
     size_t n = A->n;
     Matrix_copy(R, A);
     Matrix I = Matrix_diag_val(A->n, 1);
     Matrix_copy(Q, &I);
     Matrix_free(&I);
-    // Matrix H   = Matrix_zeros_like(&I);
-    // Matrix tmp = Matrix_zeros_like(A);
-    // Matrix A_copy = Matrix_zeros_like(A);
 
     for (size_t k = 0; k < A->n; k++)
     {
