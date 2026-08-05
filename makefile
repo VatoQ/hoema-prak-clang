@@ -9,7 +9,8 @@ CORE_SRC = \
 	$(SRC_DIR)/prng.c \
 	$(SRC_DIR)/vector.c \
 	$(SRC_DIR)/matrix.c \
-	$(SRC_DIR)/logging.c
+	$(SRC_DIR)/logging.c \
+	$(SRC_DIR)/fourier.c
 
 CORE_OBJ = $(CORE_SRC:.c=.o)
 
