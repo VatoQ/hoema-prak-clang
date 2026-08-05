@@ -9,12 +9,42 @@
 
 int main(int argc, char* argv[])
 {
-    Log_set_log_mode(MATH_LOG_STDERR);
-    double vals[]        = { -6, 0, 0, 0, 0, 5, 0, 0, 0, 0, 4, 0, 0, 0, 0, 3 };
-    Matrix M             = Matrix_new_vals(4, 4, vals);
-    double spectral_norm = Matrix_norm(&M, SPECTRAL);
+    const size_t N = 5;
+    const size_t n = N;
+    Matrix M       = Matrix_new(N, N, 0);
+    Matrix M_tmp   = Matrix_zeros_like(&M);
+    Vector eigs    = Vector_zeros(N);
+    Vector v       = Vector_zeros(N);
+    for (size_t i = 0; i < n; i++)
+    {
+        Vector tmp    = Vector_new_random_normal(N, 0.0, 1);
+        double lambda = 1.0 / Vector_norm(&tmp);
 
-    printf("||M||_2 = %f\n", spectral_norm);
+        Vector_scale(&tmp, lambda);
+        Matrix_Vector_outer(&M_tmp, &tmp, &tmp);
+        Matrix_add(&M, &M_tmp);
+        double norm_M_inv = 1.0 / Matrix_norm(&M, FROBENIUS);
+        Matrix_scale(&M, norm_M_inv);
+
+        printf("vector %zu\n", i);
+        Vector_print(&tmp);
+        printf("\n");
+        printf("Matrix %zu\n", i);
+        Matrix_print(&M);
+        Vector_free(&tmp);
+    }
+
+    Matrix_eigvals(&eigs, &M, false);
+    double norm_M = Matrix_norm(&M, FROBENIUS);
+
+    printf("\nEigenvalues:\n");
+    Vector_print(&eigs);
+    printf("\n");
+    printf("||M||_2: %f\n", norm_M);
+    Vector_free(&v);
+    Vector_free(&eigs);
     Matrix_free(&M);
-    return 0;
+    Matrix_free(&M_tmp);
+
+    return EXIT_SUCCESS;
 }

@@ -113,12 +113,13 @@ void test_matrix_inverse(void)
     Matrix_free(&M);
     Matrix_free(&M_inv);
 
-    M        = Matrix_new_random_normal(20, 20, 0, 1);
+    M        = Matrix_new_random_symmetric(20);
     M_inv    = Matrix_zeros_like(&M);
     Matrix B = Matrix_zeros_like(&M);
     Vector v = Vector_ones(20);
     Matrix I = Matrix_diag(&v);
     status   = Matrix_inverse(&M_inv, &M);
+
     TEST_CHECK(status == MATRIX_SUCCESS);
     Matrix_Matrix_dot(&B, &M, &M_inv);
     TEST_CHECK(Matrix_all_close(&I, &B));
@@ -325,7 +326,7 @@ void test_matrix_eigenvalues(void)
     Matrix M        = Matrix_diag(&init_v);
     Vector eigs     = Vector_zeros(N);
 
-    Matrix_eigvals(&eigs, &M);
+    Matrix_eigvals(&eigs, &M, true);
     for (size_t i = 0; i < N; i++)
     {
         TEST_CHECK(fabs(eigs.values[i] - init_v.values[i]) < EPS);
@@ -341,7 +342,7 @@ void test_matrix_eigenvalues(void)
     M                = Matrix_new_vals(N, N, values2);
     eigs             = Vector_zeros(N);
 
-    Matrix_eigvals(&eigs, &M);
+    Matrix_eigvals(&eigs, &M, true);
 
     double true_eigs[] = { -0.3784815, 2.72913544, 10.64934606 };
     for (size_t i = 0; i < N; i++)

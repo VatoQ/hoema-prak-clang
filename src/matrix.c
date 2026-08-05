@@ -184,7 +184,7 @@ Matrix Matrix_diag_val(const size_t n, const double val)
 void Matrix_copy(Matrix* target, const Matrix* M)
 {
     Matrix_prepare_target(target, M->m, M->n);
-    target->values = calloc(M->m * M->n, sizeof(double));
+    // target->values = calloc(M->m * M->n, sizeof(double));
     memcpy(target->values, M->values, M->m * M->n * sizeof(double));
     target->m = M->m;
     target->n = M->n;
@@ -335,7 +335,7 @@ double _Frobenius_helper(const Matrix* M)
 double _Spectral_helper(const Matrix* M)
 {
     Vector eigvals = Vector_zeros(M->n);
-    Matrix_eigvals(&eigvals, M);
+    Matrix_eigvals(&eigvals, M, false);
 
     double max = -INFINITY;
     for (size_t i = 0; i < eigvals.dim; i++)
@@ -889,6 +889,7 @@ int Matrix_QR(Matrix* Q, Matrix* R, const Matrix* A)
     Matrix_copy(R, A);
     Matrix I = Matrix_diag_val(A->n, 1);
     Matrix_copy(Q, &I);
+    Matrix_free(&I);
     // Matrix H   = Matrix_zeros_like(&I);
     // Matrix tmp = Matrix_zeros_like(A);
     // Matrix A_copy = Matrix_zeros_like(A);
@@ -998,7 +999,7 @@ double _wilkinson_shift(const Matrix* H, size_t active)
     return (fabs(lambda1 - d) < fabs(lambda2 - d)) ? lambda1 : lambda2;
 }
 
-int _eigvals_big(Vector* eigenvalues, const Matrix* M)
+int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
 {
     const size_t max_iters = 10000;
     const double eps       = 1e-12;
@@ -1027,19 +1028,17 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M)
 
             double mu = _wilkinson_shift(&H, active);
 
-            // for (size_t i = 0; i < active; i++)
-            // {
-            //     H.values[i * n + i] -= mu;
-            // }
+            for (size_t i = 0; i < active; i++)
+            {
+                H.values[i * n + i] -= mu;
+            }
+            Matrix_QR_hessenberg(&Q, &R, &H, active);
+            Matrix_Matrix_dot_active(&H, &R, &Q, active);
 
-            Matrix_QR(&Q, &R, &H);
-
-            Matrix_Matrix_dot(&H, &R, &Q);
-
-            // for (size_t i = 0; i < active; i++)
-            // {
-            //     H.values[i * n + i] += mu;
-            // }
+            for (size_t i = 0; i < active; i++)
+            {
+                H.values[i * n + i] += mu;
+            }
             bool converged = true;
             for (size_t i = 0; i < active - 1; i++)
             {
@@ -1070,7 +1069,11 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M)
     {
         eigenvalues->values[i] = H.values[i * n + i];
     }
-    Vector_sort_inplace(eigenvalues);
+    if (sort)
+    {
+        Vector_sort_inplace(eigenvalues);
+    }
+
     Matrix_free(&Q);
     Matrix_free(&R);
     Matrix_free(&H);
@@ -1078,14 +1081,14 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M)
     return MATRIX_SUCCESS;
 }
 
-int Matrix_eigvals(Vector* eigenvalues, const Matrix* M)
+int Matrix_eigvals(Vector* eigenvalues, const Matrix* M, bool sort)
 {
     if (M->n == 2)
     {
         return _eigvals_two(eigenvalues, M);
     }
 
-    return _eigvals_big(eigenvalues, M);
+    return _eigvals_big(eigenvalues, M, sort);
 }
 
 int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b)
