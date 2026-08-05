@@ -21,6 +21,23 @@ void test_matrix_create(void)
     Matrix_free(&m);
 }
 
+void test_matrix_symmetric(void)
+{
+    const size_t m = 500;
+    Matrix M       = Matrix_new_random_symmetric(m);
+    for (size_t i = 0; i < m; i++)
+    {
+        for (size_t j = i + 1; j < m; j++)
+        {
+            const double val1 = M.values[i * m + j];
+            const double val2 = M.values[j * m + i];
+            TEST_CHECK(fabs(val1 - val2) < EPS);
+        }
+    }
+
+    Matrix_free(&M);
+}
+
 void test_matrix_add(void)
 {
     Matrix A = Matrix_new(8, 5, 4.5);
@@ -354,6 +371,7 @@ void test_matrix_eigenvalues(void)
 }
 
 TEST_LIST = { { "matrix_create", test_matrix_create },
+              { "test_matrix_symmetric", test_matrix_symmetric },
               { "matrix_add", test_matrix_add },
               { "matrix_sub", test_matrix_sub },
               { "matrix_scale", test_matrix_scale },
