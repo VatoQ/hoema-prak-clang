@@ -36,9 +36,12 @@ src/%.o: src/%.c
 # Output binary: test_matrix
 # ---------------------------------------------------------
 TESTS = $(basename $(notdir $(wildcard $(TEST_DIR)/*.c)))
+.PHONY: tests
+tests: $(TESTS)
 
 $(TESTS): %: $(TEST_DIR)/%.c $(CORE_OBJ)
 	$(CC) $(CFLAGS) $(CORE_OBJ) $< -o $@ $(LDFLAGS)
+
 
 clean:
 	rm -f $(CORE_OBJ) $(MAIN_OBJ) $(TARGET) $(TESTS)
