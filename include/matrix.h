@@ -39,6 +39,7 @@
 //~- ---------------------- -~//
 ////////////////////////////////
 
+#include <stdbool.h>
 #define MATRIX_EPS 1e-4
 
 typedef enum
@@ -341,7 +342,7 @@ int Matrix_QR(Matrix* Q, Matrix* R, const Matrix* A);
  * @param M Matrix to inspect.
  * @return Status Code.
  */
-int Matrix_eigvals(Vector* eigenvalues, const Matrix* M);
+int Matrix_eigvals(Vector* eigenvalues, const Matrix* M, bool sort);
 
 /**
  * @brief Compute the outer product of two given vectors into the matrix
