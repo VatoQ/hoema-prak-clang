@@ -68,7 +68,7 @@ This will make an executable called `test_matrix` in the project root.
 
 ## Using provided build scripts
 
-There are two shell scripts provided that.
+There are two shell scripts provided that
 1. Build source files via makefile.
 2. Set environment variables.
 3. Launch the appropriate executable.
