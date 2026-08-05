@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS  = -O3 -march=native -ffast-math -Iinclude -fopenmp
+CFLAGS  = -O3 -march=native -ffast-math -Iinclude -fopenmp -std=c17
 LDFLAGS = -lm
 
 SRC_DIR = src
@@ -43,6 +43,19 @@ $(TESTS): %: $(TEST_DIR)/%.c $(CORE_OBJ)
 	$(CC) $(CFLAGS) $(CORE_OBJ) $< -o $@ $(LDFLAGS)
 
 
+# ---------------------------------------------------------
+# BENCHMARK BUILDING SECTION
+# ---------------------------------------------------------
+
+BENCH_DIR = benchmarks
+BENCHMARKS = $(basename $(notdir $(wildcard $(BENCH_DIR)/*.c)))
+
+.PHONY: benchmarks
+benchmarks: $(BENCHMARKS)
+
+$(BENCHMARKS): %: $(BENCH_DIR)/%.c $(CORE_OBJ)
+	$(CC) $(CFLAGS) $(CORE_OBJ) $< -o $@ $(LDFLAGS)
+
 clean:
-	rm -f $(CORE_OBJ) $(MAIN_OBJ) $(TARGET) $(TESTS)
+	rm -f $(CORE_OBJ) $(MAIN_OBJ) $(TARGET) $(TESTS) $(BENCHMARKS)
 
