@@ -10,6 +10,10 @@
 #include <string.h>
 #include <sys/types.h>
 
+#ifndef PARALLEL_THRESHOLD
+#define PARALLEL_THRESHOLD 1000
+#endif // PARALLEL_THRESHOLD
+
 static PRNG_State prng = { 0 };
 
 /**
@@ -50,6 +54,7 @@ void Vector_prepare_target(Vector* target, const size_t dim)
 Vector Vector_new(const size_t dim, const double init_val)
 {
     Vector v = Vector_zeros(dim);
+#pragma omp simd
     for (size_t i = 0; i < dim; i++)
     {
         v.values[i] = init_val;
@@ -102,13 +107,8 @@ Vector Vector_new_copy(const Vector* v)
     return res;
 }
 
-int Vector_all_close(const Vector* u, const Vector* v)
+int _all_close_scalar(const Vector* u, const Vector* v)
 {
-    if (v->dim != u->dim)
-    {
-        return 0;
-    }
-
     for (size_t n = 0; n < u->dim; n++)
     {
         if (fabs(u->values[n] - v->values[n]) > EPS)
@@ -117,6 +117,35 @@ int Vector_all_close(const Vector* u, const Vector* v)
         }
     }
     return 1;
+}
+
+int _all_close_parallel(const Vector* u, const Vector* v)
+{
+    int all_close = 1;
+#pragma omp parallel for
+    for (size_t n = 0; n < u->dim; n++)
+    {
+        if (fabs(u->values[n] - v->values[n]) > EPS)
+        {
+            all_close = 0;
+        }
+    }
+    return all_close;
+}
+
+int Vector_all_close(const Vector* u, const Vector* v)
+{
+    if (v->dim != u->dim)
+    {
+        return 0;
+    }
+
+    if (v->dim > PARALLEL_THRESHOLD)
+    {
+        return _all_close_parallel(u, v);
+    }
+
+    return _all_close_scalar(u, v);
 }
 
 void Vector_copy(Vector* target, const Vector* v)
@@ -207,7 +236,22 @@ void Vector_print(Vector* v)
     printf(")");
 }
 
-double Vector_max(const Vector* v)
+double _max_parallel(const Vector* v)
+{
+    double max = -INFINITY;
+
+#pragma omp parallel for
+    for (size_t i = 0; i < v->dim; i++)
+    {
+        if (v->values[i] > max)
+        {
+            max = v->values[i];
+        }
+    }
+    return max;
+}
+
+double _max_scalar(const Vector* v)
 {
     double max = -INFINITY;
 
@@ -221,7 +265,31 @@ double Vector_max(const Vector* v)
     return max;
 }
 
-double Vector_min(const Vector* v)
+double Vector_max(const Vector* v)
+{
+    if (v->dim > PARALLEL_THRESHOLD)
+    {
+        return _max_parallel(v);
+    }
+    return _max_scalar(v);
+}
+
+double _min_parallel(const Vector* v)
+{
+    double min = INFINITY;
+
+#pragma omp parallel for
+    for (size_t i = 0; i < v->dim; i++)
+    {
+        if (v->values[i] < min)
+        {
+            min = v->values[i];
+        }
+    }
+    return min;
+}
+
+double _min_scalar(const Vector* v)
 {
     double min = INFINITY;
 
@@ -233,6 +301,15 @@ double Vector_min(const Vector* v)
         }
     }
     return min;
+}
+
+double Vector_min(const Vector* v)
+{
+    if (v->dim > PARALLEL_THRESHOLD)
+    {
+        return _min_parallel(v);
+    }
+    return _min_scalar(v);
 }
 
 void _insertion_sort(Vector* v, size_t low, size_t high)
@@ -436,6 +513,7 @@ int Vector_sub(Vector* target, const Vector* v)
 
 int Vector_scale(Vector* target, const double lambda)
 {
+#pragma omp simd
     for (size_t n = 0; n < target->dim; n++)
     {
         target->values[n] *= lambda;
