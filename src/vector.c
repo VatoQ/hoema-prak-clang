@@ -10,6 +10,8 @@
 #include <string.h>
 #include <sys/types.h>
 
+static PRNG_State prng = { 0 };
+
 /**
  * @brief Check status of a given vector.
  *
@@ -67,8 +69,8 @@ Vector Vector_new_random_normal(const size_t dim,
                                 const double mean,
                                 const double variance)
 {
-    PRNG_State prng = PRNG_State_init(NO_SEED);
-    Vector v        = Vector_zeros(dim);
+    Vector_init_prng(NO_SEED);
+    Vector v = Vector_zeros(dim);
     for (size_t n = 0; n < dim; n++)
     {
         v.values[n] = PRNG_State_normal(&prng, mean, variance);
@@ -80,8 +82,8 @@ Vector Vector_new_random_uniform(const size_t dim,
                                  const double min,
                                  const double max)
 {
-    PRNG_State prng = PRNG_State_init(NO_SEED);
-    Vector v        = Vector_zeros(dim);
+    Vector_init_prng(NO_SEED);
+    Vector v = Vector_zeros(dim);
     for (size_t n = 0; n < dim; n++)
     {
         v.values[n] = PRNG_State_random_double_range(&prng, min, max);
@@ -355,6 +357,14 @@ int Vector_sort(Vector* target, const Vector* v)
 {
     Vector_copy(target, v);
     return Vector_sort_inplace(target);
+}
+
+void Vector_init_prng(const int seed)
+{
+    if (prng.aux == 0 && prng.state == 0)
+    {
+        prng = PRNG_State_init(seed);
+    }
 }
 
 double Vector_norm(const Vector* v)
