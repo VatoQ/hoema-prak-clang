@@ -109,6 +109,26 @@ Matrix Matrix_new_random_uniform(const size_t m,
     return M;
 }
 
+Matrix Matrix_new_random_symmetric(const size_t n)
+{
+    Matrix M   = Matrix_new(n, n, 0);
+    Matrix tmp = Matrix_zeros_like(&M);
+
+    Vector v = Vector_zeros(0);
+
+    for (size_t i = 0; i < n; i++)
+    {
+        v             = Vector_new_random_normal(n, 0, 1);
+        double norm_v = 1. / Vector_norm(&v);
+        Vector_scale(&v, norm_v);
+        Matrix_Vector_outer(&tmp, &v, &v);
+        Matrix_add(&M, &tmp);
+
+        Vector_free(&v);
+    }
+    return M;
+}
+
 Matrix Matrix_zeros_like(const Matrix* M)
 {
     return Matrix_new(M->m, M->n, 0);
@@ -389,7 +409,6 @@ void Matrix_scale(Matrix* target, const double lambda)
 
 static int _invert_n_n_matrix(Matrix* target, const Matrix* M)
 {
-    // TODO: Error code handling
     Matrix M_copy = Matrix_new(0, 0, 0.0);
     Matrix_copy(&M_copy, M);
     Vector ones = Vector_new(M->n, 1);
@@ -398,23 +417,26 @@ static int _invert_n_n_matrix(Matrix* target, const Matrix* M)
     for (size_t m = 0; m < M->m; m++)
     {
         double lambda = M_copy.values[m * M_copy.n + m];
-        // Matrix_get_at(&lambda, &M_copy, m, m);
-        lambda                  = 1.0 / lambda;
+        if (fabs(lambda) < EPS)
+        {
+            return MATRIX_MATH_ERROR;
+        }
+        lambda                  = 1.0 / lambda; // 1
         double* row_vals        = M_copy.values + m * M->n;
         double* row_target_vals = target->values + m * M->n;
         Vector row              = Vector_new_vals(M->n, row_vals);
         Vector row_target       = Vector_new_vals(M->n, row_target_vals);
-        Vector_scale(&row, lambda);
-        Vector_scale(&row_target, lambda);
+        Vector_scale(&row, lambda);        // n
+        Vector_scale(&row_target, lambda); // n
         memcpy(
           target->values + m * M->n, row_target.values, M->n * sizeof(double));
         memcpy(M_copy.values + m * M->n, row.values, M->n * sizeof(double));
 
         for (size_t n = m + 1; n < M->n; n++)
         {
-            // Matrix_get_at(&lambda, &M_copy, n, m);
             lambda = M_copy.values[n * M_copy.n + m];
             Vector_scale(&row, lambda);
+
             Vector_scale(&row_target, lambda);
 
             row_vals            = M_copy.values + n * M->n;
@@ -431,6 +453,10 @@ static int _invert_n_n_matrix(Matrix* target, const Matrix* M)
             memcpy(
               M_copy.values + n * M->n, row_n.values, M->n * sizeof(double));
 
+            if (fabs(lambda) < EPS)
+            {
+                return MATRIX_MATH_ERROR;
+            }
             Vector_scale(&row, 1 / lambda);
             Vector_scale(&row_target, 1 / lambda);
 
@@ -474,6 +500,10 @@ static int _invert_n_n_matrix(Matrix* target, const Matrix* M)
             memcpy(
               M_copy.values + n * M->n, row_n.values, M->n * sizeof(double));
 
+            if (fabs(lambda) < EPS)
+            {
+                return MATRIX_MATH_ERROR;
+            }
             Vector_scale(&row, 1 / lambda);
             Vector_scale(&row_target, 1 / lambda);
         }

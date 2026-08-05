@@ -128,6 +128,8 @@ Matrix Matrix_new_random_uniform(const size_t m,
                                  const double min,
                                  const double max);
 
+Matrix Matrix_new_random_symmetric(const size_t n);
+
 /**
  * @brief Construct a Matrix with the shape of `M` filled with zeros.
  *
