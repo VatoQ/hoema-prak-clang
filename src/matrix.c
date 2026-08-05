@@ -409,107 +409,174 @@ void Matrix_scale(Matrix* target, const double lambda)
 
 static int _invert_n_n_matrix(Matrix* target, const Matrix* M)
 {
+    // Assume M is n x n
+    const size_t n = M->n;
+
+    // Make a working copy of M
     Matrix M_copy = Matrix_new(0, 0, 0.0);
     Matrix_copy(&M_copy, M);
-    Vector ones = Vector_new(M->n, 1);
-    *target     = Matrix_diag(&ones);
-    // Phase one, make lower right triangle
-    for (size_t m = 0; m < M->m; m++)
+
+    // Initialize target as identity
+    Vector ones = Vector_new(n, 1.0);
+    Matrix tmp  = Matrix_diag(&ones);
+    Matrix_free(target);
+    *target = tmp;
+    Vector_free(&ones);
+
+    double* A = M_copy.values;  // n x n
+    double* B = target->values; // n x n
+
+    // Gauss–Jordan elimination: [A | I] -> [I | A^{-1}]
+    for (size_t k = 0; k < n; ++k)
     {
-        double lambda = M_copy.values[m * M_copy.n + m];
-        if (fabs(lambda) < EPS)
+        // Pivot element
+        double pivot = A[k * n + k];
+        if (fabs(pivot) < EPS)
         {
+            Matrix_free(&M_copy);
             return MATRIX_MATH_ERROR;
         }
-        lambda                  = 1.0 / lambda; // 1
-        double* row_vals        = M_copy.values + m * M->n;
-        double* row_target_vals = target->values + m * M->n;
-        Vector row              = Vector_new_vals(M->n, row_vals);
-        Vector row_target       = Vector_new_vals(M->n, row_target_vals);
-        Vector_scale(&row, lambda);        // n
-        Vector_scale(&row_target, lambda); // n
-        memcpy(
-          target->values + m * M->n, row_target.values, M->n * sizeof(double));
-        memcpy(M_copy.values + m * M->n, row.values, M->n * sizeof(double));
 
-        for (size_t n = m + 1; n < M->n; n++)
+        double inv_pivot = 1.0 / pivot;
+
+        // Scale pivot row in A and B
+#pragma omp simd
+        for (size_t j = 0; j < n; ++j)
         {
-            lambda = M_copy.values[n * M_copy.n + m];
-            Vector_scale(&row, lambda);
-
-            Vector_scale(&row_target, lambda);
-
-            row_vals            = M_copy.values + n * M->n;
-            row_target_vals     = target->values + n * M->n;
-            Vector row_n        = Vector_new_vals(M->n, row_vals);
-            Vector row_target_n = Vector_new_vals(M->n, row_target_vals);
-
-            Vector_sub(&row_target_n, &row_target);
-            Vector_sub(&row_n, &row);
-
-            memcpy(target->values + n * M->n,
-                   row_target_n.values,
-                   M->n * sizeof(double));
-            memcpy(
-              M_copy.values + n * M->n, row_n.values, M->n * sizeof(double));
-
-            if (fabs(lambda) < EPS)
-            {
-                return MATRIX_MATH_ERROR;
-            }
-            Vector_scale(&row, 1 / lambda);
-            Vector_scale(&row_target, 1 / lambda);
-
-            Vector_free(&row_n);
-            Vector_free(&row_target_n);
+            A[k * n + j] *= inv_pivot;
+            B[k * n + j] *= inv_pivot;
         }
 
-        Vector_free(&row);
-        Vector_free(&row_target);
-    }
-
-    // Phase two, fill upper right triangle.
-    for (long m = M->m - 1; m >= 0; m--)
-    {
-        double lambda;
-        double* row_vals        = M_copy.values + m * M->n;
-        double* row_target_vals = target->values + m * M->n;
-        Vector row              = Vector_new_vals(M->n, row_vals);
-        Vector row_target       = Vector_new_vals(M->n, row_target_vals);
-        memcpy(
-          target->values + m * M->n, row_target.values, M->n * sizeof(double));
-        memcpy(M_copy.values + m * M->n, row.values, M->n * sizeof(double));
-        for (long n = m - 1; n >= 0; n--)
+        // Eliminate all other rows
+        for (size_t i = 0; i < n; ++i)
         {
-            // Matrix_get_at(&lambda, &M_copy, n, m);
-            lambda = M_copy.values[n * M_copy.n + m];
-            Vector_scale(&row, lambda);
-            Vector_scale(&row_target, lambda);
+            if (i == k)
+                continue;
 
-            row_vals            = M_copy.values + n * M->n;
-            row_target_vals     = target->values + n * M->n;
-            Vector row_n        = Vector_new_vals(M->n, row_vals);
-            Vector row_target_n = Vector_new_vals(M->n, row_target_vals);
-
-            Vector_sub(&row_target_n, &row_target);
-            Vector_sub(&row_n, &row);
-
-            memcpy(target->values + n * M->n,
-                   row_target_n.values,
-                   M->n * sizeof(double));
-            memcpy(
-              M_copy.values + n * M->n, row_n.values, M->n * sizeof(double));
-
+            double lambda = A[i * n + k]; // factor to eliminate column k
             if (fabs(lambda) < EPS)
             {
-                return MATRIX_MATH_ERROR;
+                // If lambda is ~0, row already has 0 in column k; skip
+                continue;
             }
-            Vector_scale(&row, 1 / lambda);
-            Vector_scale(&row_target, 1 / lambda);
+
+#pragma omp simd
+            for (size_t j = 0; j < n; ++j)
+            {
+                A[i * n + j] -= lambda * A[k * n + j];
+                B[i * n + j] -= lambda * B[k * n + j];
+            }
         }
     }
 
     Matrix_free(&M_copy);
+    return MATRIX_SUCCESS;
+}
+
+// Computes LU decomposition of M (n×n) into target.
+// target will contain both L and U in compact form:
+// - U is in the upper triangle (including diagonal)
+// - L is in the lower triangle (unit diagonal implied)
+// Returns MATRIX_MATH_ERROR if a zero pivot is encountered.
+static int _lu_decompose(Matrix* target, const Matrix* M)
+{
+    const size_t n = M->n;
+
+    // Copy M into target (LU will be built in-place)
+    // Matrix_free(target);
+    Matrix_copy(target, M);
+
+    double* A = target->values; // n×n matrix in row-major
+
+    for (size_t k = 0; k < n; ++k)
+    {
+        double pivot = A[k * n + k];
+        if (fabs(pivot) < EPS)
+            return MATRIX_MATH_ERROR;
+
+        // Compute U row k (already present)
+        // Compute L column k (below pivot)
+#pragma omp parallel for
+        for (size_t i = k + 1; i < n; ++i)
+        {
+            A[i * n + k] /= pivot; // L(i,k)
+
+            double lik = A[i * n + k];
+
+#pragma omp simd
+            for (size_t j = k + 1; j < n; ++j)
+            {
+                A[i * n + j] -= lik * A[k * n + j];
+            }
+        }
+    }
+
+    return MATRIX_SUCCESS;
+}
+
+static void _forward_sub(double* LU, double* y, const double* b, size_t n)
+{
+    for (size_t i = 0; i < n; ++i)
+    {
+        double sum = b[i];
+#pragma omp simd
+        for (size_t j = 0; j < i; ++j)
+            sum -= LU[i * n + j] * y[j];
+
+        y[i] = sum; // L has unit diagonal
+    }
+}
+
+static void _backward_sub(double* LU, double* x, const double* y, size_t n)
+{
+    for (long i = n - 1; i >= 0; --i)
+    {
+        double sum = y[i];
+#pragma omp simd
+        for (size_t j = i + 1; j < n; ++j)
+            sum -= LU[i * n + j] * x[j];
+
+        x[i] = sum / LU[i * n + i];
+    }
+}
+
+static int _invert_via_lu(Matrix* target, const Matrix* M)
+{
+    const size_t n = M->n;
+
+    Matrix LU = Matrix_new(0, 0, 0);
+    if (_lu_decompose(&LU, M) != MATRIX_SUCCESS)
+        return MATRIX_MATH_ERROR;
+
+    Matrix_free(target);
+    *target = Matrix_new(n, n, 0.0);
+
+    double* inv = target->values;
+    double* A   = LU.values;
+
+    double* y = malloc(n * sizeof(double));
+    double* x = malloc(n * sizeof(double));
+
+    for (size_t col = 0; col < n; ++col)
+    {
+        // b = e_col (unit vector)
+        memset(y, 0, n * sizeof(double));
+        memset(x, 0, n * sizeof(double));
+
+        double* b = y;
+        b[col]    = 1.0;
+
+        _forward_sub(A, y, b, n);
+        _backward_sub(A, x, y, n);
+
+        // Write column of inverse
+        for (size_t row = 0; row < n; ++row)
+            inv[row * n + col] = x[row];
+    }
+
+    free(y);
+    free(x);
+    Matrix_free(&LU);
 
     return MATRIX_SUCCESS;
 }
@@ -554,7 +621,7 @@ int Matrix_inverse(Matrix* target, const Matrix* M)
         return MATRIX_SUCCESS;
     }
 
-    int status = _invert_n_n_matrix(target, M);
+    int status = _invert_via_lu(target, M);
     if (status != MATRIX_SUCCESS)
     {
         Log_log("Unknown math error in Matrix_inverse()", LOG_ERROR);
