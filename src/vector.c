@@ -3,6 +3,7 @@
 #include "../include/prng.h"
 #include <assert.h>
 #include <math.h>
+#include <omp.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -473,14 +474,8 @@ int Vector_add(Vector* target, const Vector* v)
     return VECTOR_SUCCESS;
 }
 
-int Vector_dot(double* target, const Vector* u, const Vector* v)
+int _dot_scalar(double* target, const Vector* u, const Vector* v)
 {
-    if (!Vector_dimension_match(u, v))
-    {
-        Log_log("Dimension error in Vector_sub()", LOG_ERROR);
-        return VECTOR_DIMENSION_ERROR;
-    }
-
     double s                  = 0.0;
     double* restrict u_values = u->values;
     double* restrict v_values = v->values;
@@ -492,6 +487,33 @@ int Vector_dot(double* target, const Vector* u, const Vector* v)
     }
     *target = s;
     return VECTOR_SUCCESS;
+}
+
+int _dot_parallel(double* target, const Vector* u, const Vector* v)
+{
+    double s = 0.0;
+
+#pragma omp parallel for reduction(+ : s)
+    for (size_t i = 0; i < u->dim; i++)
+    {
+        s += u->values[i] * v->values[i];
+    }
+    *target = s;
+    return VECTOR_SUCCESS;
+}
+
+int Vector_dot(double* target, const Vector* u, const Vector* v)
+{
+    if (!Vector_dimension_match(u, v))
+    {
+        Log_log("Dimension error in Vector_sub()", LOG_ERROR);
+        return VECTOR_DIMENSION_ERROR;
+    }
+    if (u->dim > PARALLEL_THRESHOLD)
+    {
+        return _dot_parallel(target, u, v);
+    }
+    return _dot_scalar(target, u, v);
 }
 
 int Vector_sub(Vector* target, const Vector* v)
