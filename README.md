@@ -66,6 +66,27 @@ make test_matrix
 
 This will make an executable called `test_matrix` in the project root.
 
+## Using provided build scripts
+
+There are two shell scripts provided that.
+1. Build source files via makefile.
+2. Set environment variables.
+3. Launch the appropriate executable.
+4. Are written in fish, so make sure it is installed and visible.
+
+### `run_main.sh`
+
+- Build all sources in `src/*` and `src/main.c` into the executable `main`. All compiler flags are specified by `makefile`.
+- Set OpenMP environment flags.
+- Execute `.main`.
+
+
+### `run_tests.sh`
+- Build all non main sources in `src/*` and all tests in `tests/*` into executables `test_*`.
+- Iterate over all `test_*` files and execute.
+- Give additional output if one or zero tests failed.
+
+
 
 # License & Usage
 
