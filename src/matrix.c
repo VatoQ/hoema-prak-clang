@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static PRNG_State prng = { 0 };
+
 int Matrix_is_empty(const Matrix* M)
 {
     return ((M->values == NULL) || (M->m == 0 && M->n == 0));
@@ -68,12 +70,21 @@ Matrix Matrix_new_vals(const size_t m, const size_t n, const double* init_vals)
     return M;
 }
 
+void Matrix_init_prng(const int seed)
+{
+    if (prng.aux == 0 && prng.state == 0)
+    {
+        prng = PRNG_State_init(seed);
+    }
+}
+
 Matrix Matrix_new_random_normal(const size_t m,
                                 const size_t n,
                                 const double mean,
                                 const double variance)
 {
-    PRNG_State prng = PRNG_State_init(NO_SEED);
+
+    Matrix_init_prng(NO_SEED);
 
     Matrix M = Matrix_new(m, n, 0.0);
     for (size_t i = 0; i < m * n; i++)
@@ -88,7 +99,7 @@ Matrix Matrix_new_random_uniform(const size_t m,
                                  const double min,
                                  const double max)
 {
-    PRNG_State prng = PRNG_State_init(NO_SEED);
+    Matrix_init_prng(NO_SEED);
 
     Matrix M = Matrix_new(m, n, 0);
     for (size_t i = 0; i < m * n; i++)
@@ -246,8 +257,41 @@ void Matrix_print(const Matrix* M)
     {
         for (size_t j = 0; j < n; j++)
         {
+            if (j == 0 && i == 0)
+            {
+                printf("/ ");
+            }
+            else if (j == 0 && i == m - 1)
+            {
+                printf("\\ ");
+            }
+            else if (j == 0)
+            {
+                printf("| ");
+            }
             double val = M->values[i * M->n + j];
-            printf("%f ", val);
+            char* sep  = "";
+            if (val > 0)
+            {
+                sep = "  ";
+            }
+            else
+            {
+                sep = " ";
+            }
+            printf("%f%s", val, sep);
+            if (j == n - 1 && i == 0)
+            {
+                printf("\\");
+            }
+            else if (j == n - 1 && i == m - 1)
+            {
+                printf("/");
+            }
+            else if (j == n - 1)
+            {
+                printf("|");
+            }
         }
         printf("\n");
     }
