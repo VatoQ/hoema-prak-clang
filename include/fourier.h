@@ -8,10 +8,6 @@
 #define TO true
 #define FROM false
 
-// #define DFT_SCALAR 0
-// #define DFT_PARALLEL 1
-// #define FFT 2
-
 typedef enum
 {
     DFT_SCALAR,
@@ -36,8 +32,6 @@ typedef struct
  * @return Status code depending on the success of the transformation.
  */
 int fourier_transform(DataPoints* target, const DataPoints* source, bool to);
-
-int fourier_worker_fft(DataPoints* target, const DataPoints* source, bool to);
 
 /**
  * @brief Construct a new data set. Allocates `size` complex numbers.
