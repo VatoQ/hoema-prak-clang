@@ -2,7 +2,7 @@
 
 make tests
 
-for f in ./test_*
+for f in bin/test_*
 
     if test -f "$f" -a -x "$f"
         echo "Running $f"

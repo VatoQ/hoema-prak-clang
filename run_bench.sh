@@ -4,7 +4,7 @@ make benchmarks
 
 
 
-for f in ./bench_*
+for f in bin/bench_*
     if test -f "$f" -a -x "$f"
         echo "Running benchmark $f"
         ./"$f"

@@ -1,6 +1,3 @@
-main
 *.o
-test_fourier
-test_matrix
-test_vector
 !test/test_*.c
+bin
