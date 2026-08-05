@@ -98,6 +98,8 @@ Matrix Matrix_new(const size_t m, const size_t n, const double init_val);
  */
 Matrix Matrix_new_vals(const size_t m, const size_t n, const double* init_vals);
 
+void Matrix_init_prng(const int seed);
+
 /**
  * @brief Construct a new Matrix with normally distributed initial values.
  *

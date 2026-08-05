@@ -175,6 +175,8 @@ int Vector_sort_inplace(Vector* v);
 
 int Vector_sort(Vector* target, const Vector* v);
 
+void Vector_init_prng(const int seed);
+
 /////////////////////////////////////////
 //~- ------------------------------ -~//
 //~-      Mathematic Functions      -~//

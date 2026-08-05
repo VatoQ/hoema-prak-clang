@@ -25,10 +25,7 @@ void test_data_points_new(void)
     DataPoints freq = DataPoints_new(N);
     DataPoints tmp  = DataPoints_new(N);
 
-    printf("Before transform\n");
     fourier_transform(&freq, &dp, TO);
-    printf("After transform\n");
-
     fourier_transform(&tmp, &freq, FROM);
 
     for (size_t i = 0; i < N; i++)
