@@ -19,7 +19,6 @@ static PRNG_State prng = { 0 };
 
 static int _parallel_condition(size_t dim)
 {
-    dim *= sizeof(double);
     const size_t lower = PARALLEL_THRESHOLDS.lower;
     const size_t upper = PARALLEL_THRESHOLDS.upper;
 
@@ -150,7 +149,7 @@ int Vector_all_close(const Vector* u, const Vector* v)
         return 0;
     }
 
-    if (_parallel_condition(v->dim))
+    if (_parallel_condition(v->dim * sizeof(double)))
     {
         return _all_close_parallel(u, v);
     }
@@ -277,7 +276,7 @@ static double _max_scalar(const Vector* v)
 
 double Vector_max(const Vector* v)
 {
-    if (_parallel_condition(v->dim))
+    if (_parallel_condition(v->dim * sizeof(double)))
     {
         return _max_parallel(v);
     }
@@ -315,7 +314,7 @@ static double _min_scalar(const Vector* v)
 
 double Vector_min(const Vector* v)
 {
-    if (_parallel_condition(v->dim))
+    if (_parallel_condition(v->dim * sizeof(double)))
     {
         return _min_parallel(v);
     }
@@ -518,7 +517,7 @@ int Vector_dot(double* target, const Vector* u, const Vector* v)
         Log_log("Dimension error in Vector_sub()", LOG_RT_ERROR);
         return VECTOR_DIMENSION_ERROR;
     }
-    if (_parallel_condition(v->dim))
+    if (_parallel_condition(v->dim * sizeof(double)))
     {
         return _dot_parallel(target, u, v);
     }
