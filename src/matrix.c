@@ -1079,8 +1079,15 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
 
     Matrix H = Matrix_zeros_like(M);
     Matrix_Hessenberg(&H, M); // Q^T M Q → upper Hessenberg
-    Matrix Q = Matrix_zeros_like(&H);
-    Matrix R = Matrix_zeros_like(&H);
+    Matrix Q;
+    Q.m      = H.m;
+    Q.n      = H.n;
+    Q.values = malloc(Q.m * Q.n * sizeof(double));
+
+    Matrix R;
+    R.m      = H.m;
+    R.n      = H.n;
+    R.values = malloc(Q.m * Q.n * sizeof(double));
 
     size_t n      = H.n;
     size_t active = n;
@@ -1101,6 +1108,7 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
 
             double mu = _wilkinson_shift(&H, active);
 
+#pragma omp simd
             for (size_t i = 0; i < active; i++)
             {
                 H.values[i * n + i] -= mu;
@@ -1108,6 +1116,7 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
             Matrix_QR_hessenberg(&Q, &R, &H, active);
             Matrix_Matrix_dot_active(&H, &R, &Q, active);
 
+#pragma omp simd
             for (size_t i = 0; i < active; i++)
             {
                 H.values[i * n + i] += mu;
@@ -1138,6 +1147,7 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
         }
     }
     Vector_prepare_target(eigenvalues, n);
+#pragma omp simd
     for (size_t i = 0; i < n; i++)
     {
         eigenvalues->values[i] = H.values[i * n + i];
@@ -1164,10 +1174,23 @@ int Matrix_eigvals(Vector* eigenvalues, const Matrix* M, bool sort)
     return _eigvals_big(eigenvalues, M, sort);
 }
 
-int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b)
+int _outer_scalar(Matrix* target, const Vector* a, const Vector* b)
 {
-    Matrix_prepare_target(target, a->dim, b->dim);
+    for (size_t m = 0; m < a->dim; m++)
+    {
+        for (size_t n = 0; n < b->dim; n++)
+        {
 
+            double value                      = a->values[m] * b->values[n];
+            target->values[m * target->n + n] = value;
+        }
+    }
+
+    return MATRIX_SUCCESS;
+}
+
+int _outer_parallel(Matrix* target, const Vector* a, const Vector* b)
+{
 #pragma omp parallel for // parallel outer basically always faster
     for (size_t m = 0; m < a->dim; m++)
     {
@@ -1182,10 +1205,21 @@ int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b)
     return MATRIX_SUCCESS;
 }
 
+int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b)
+{
+    Matrix_prepare_target(target, a->dim, b->dim);
+    if (a->dim * b->dim > 200 * 200)
+    {
+        return _outer_parallel(target, a, b);
+    }
+    return _outer_scalar(target, a, b);
+}
+
 int _outer_square_scalar(Matrix* target, const Vector* v, const size_t N)
 {
     for (size_t m = 0; m < N; m++)
     {
+#pragma omp simd
         for (size_t n = m; n < N; n++)
         {
             double value                      = v->values[m] * v->values[n];
@@ -1196,65 +1230,16 @@ int _outer_square_scalar(Matrix* target, const Vector* v, const size_t N)
     return MATRIX_SUCCESS;
 }
 
-int _outer_square_parallel(Matrix* target, const Vector* v, const size_t N)
-{
-    const size_t B = 64;
-
-#pragma omp parallel for collapse(2)
-    for (size_t i0 = 0; i0 < N; i0 += B)
-    {
-        for (size_t j0 = 0; j0 < N; j0 += B)
-        {
-            const size_t i_max = (i0 + B < N ? i0 + B : N);
-            const size_t j_max = (j0 + B < N ? j0 + B : N);
-
-            if (i0 < j0)
-            {
-                // upper tile
-                for (size_t i = i0; i < i_max; i++)
-                    for (size_t j = j0; j < j_max; j++)
-                        target->values[i * N + j] = v->values[i] * v->values[j];
-            }
-            else if (i0 > j0)
-            {
-                // lower tile
-                for (size_t i = i0; i < i_max; i++)
-                    for (size_t j = j0; j < j_max; j++)
-                        target->values[i * N + j] = v->values[i] * v->values[j];
-            }
-            else
-            {
-                // diagonal tile: only upper triangle
-                for (size_t i = i0; i < i_max; i++)
-                    for (size_t j = i; j < j_max; j++)
-                        target->values[i * N + j] = v->values[i] * v->values[j];
-            }
-        }
-    }
-
-    return MATRIX_SUCCESS;
-}
-
+// deprecated, gets outperformed by naiive outer product
 int Matrix_Vector_outer_square(Matrix* target, const Vector* v)
 {
+    if (v->dim > 0)
+    {
+        return Matrix_Vector_outer(target, v, v);
+    }
 
     Matrix_prepare_target(target, v->dim, v->dim);
-    if (v->dim > 10)
-    {
-        return _outer_square_parallel(target, v, v->dim);
-    }
     return _outer_square_scalar(target, v, v->dim);
-#pragma omp parallel for collapse(2)
-    for (size_t m = 0; m < v->dim; m++)
-    {
-        for (size_t n = m; n < v->dim; n++)
-        {
-            double value                      = v->values[m] * v->values[n];
-            target->values[m * target->n + n] = value;
-            target->values[n * target->n + m] = value;
-        }
-    }
-    return MATRIX_SUCCESS;
 }
 
 int Matrix_Hessenberg(Matrix* H, const Matrix* A)
@@ -1272,30 +1257,44 @@ int Matrix_Hessenberg(Matrix* H, const Matrix* A)
     {
         size_t rows = m - (k + 1);
 
-        Vector x = Vector_zeros(rows);
+        Vector x;
+        x.values     = malloc(rows * sizeof(double));
+        x.dim        = rows;
+        double normx = 0.0;
         for (size_t i = 0; i < rows; i++)
         {
-            x.values[i] = H->values[(k + 1 + i) * n + k];
+            double val  = H->values[(k + 1 + i) * n + k];
+            x.values[i] = val;
+            normx += val * val;
         }
-        double normx = Vector_norm(&x);
         if (normx == 0.0)
         {
             Vector_free(&x);
             continue;
         }
+        normx = sqrt(normx);
 
         double sign = (x.values[0] >= 0.0) ? 1.0 : -1.0;
 
         Vector e1    = Vector_zeros(rows);
         e1.values[0] = 1.0;
 
-        Vector v = Vector_zeros_like(&x);
+        Vector v;
+        v.values = malloc(x.dim * sizeof(double));
+        v.dim    = x.dim;
         Vector_copy(&v, &x);
         Vector_scale(&e1, sign * normx);
         Vector_add(&v, &e1);
         Vector_free(&e1);
 
-        double vnorm = Vector_norm(&v);
+        double vnorm = 0.0;
+
+        for (size_t i = 0; i < v.dim; i++)
+        {
+            vnorm += v.values[i] * v.values[i];
+        }
+        vnorm = sqrt(vnorm);
+
         Vector_scale(&v, 1.0 / vnorm);
 
         for (size_t j = k; j < n; j++)
@@ -1382,7 +1381,10 @@ void Matrix_Matrix_dot_active(Matrix* H,
 {
     size_t n = H->n;
 
-    Matrix tmp = Matrix_zeros_like(H);
+    Matrix tmp;
+    tmp.values = malloc(H->m * H->n * sizeof(double));
+    tmp.m      = H->m;
+    tmp.n      = H->n;
 
     for (size_t i = 0; i < active; i++)
     {
@@ -1398,6 +1400,7 @@ void Matrix_Matrix_dot_active(Matrix* H,
 
     // Copy back only active block
     for (size_t i = 0; i < active; i++)
+#pragma omp simd
         for (size_t j = 0; j < active; j++)
             H->values[i * n + j] = tmp.values[i * n + j];
 
