@@ -40,7 +40,7 @@ void dot_callback(void* ctx)
 int main(int argc, char* argv[])
 {
     config_init();
-    const size_t runs   = 25;
+    const size_t runs   = 5;
     const size_t ignore = 3;
     PRNG_State prng     = PRNG_State_init(NO_SEED);
     const size_t N      = 530000;

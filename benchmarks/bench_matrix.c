@@ -70,6 +70,13 @@ void outer_callback(void* ctx)
     Matrix_Vector_outer(a->target, a->u, a->v);
 }
 
+void outer_square_callback(void* ctx)
+{
+
+    outer_args* a = ctx;
+    Matrix_Vector_outer_square(a->target, a->u);
+}
+
 int main(int argc, char** argv)
 {
     const size_t runs   = 6;
@@ -119,6 +126,8 @@ int main(int argc, char** argv)
                       "Matrix_Matrix_dot() ",
                       call_mma);
 
+    new_m = 600;
+
     Vector outer_left  = Vector_new_random_normal(new_m, 0, 1);
     Vector outer_right = Vector_new_random_normal(new_m, 0, 1);
     Matrix Outer_res   = Matrix_new(new_m, new_m, 0);
@@ -127,6 +136,17 @@ int main(int argc, char** argv)
     callable_t call_oa = { outer_callback, &oa };
     track_performance(
       runs, ignore, new_m * new_m, new_m, "Matrix_Vector_outer()", call_oa);
+
+    size_t flops_outer  = n * (n + 1) / 2;
+    outer_args osa      = { &Outer_res, &outer_left, &outer_left };
+    callable_t call_osa = { outer_square_callback, &osa };
+
+    track_performance(runs,
+                      ignore,
+                      flops_outer,
+                      new_m,
+                      "Matrix_Vector_outer_square()",
+                      call_osa);
 
     Matrix_free(&Outer_res);
     Vector_free(&outer_left);
