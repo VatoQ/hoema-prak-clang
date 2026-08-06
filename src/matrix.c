@@ -41,6 +41,24 @@ Matrix Matrix_new(const size_t m, const size_t n, const double init_val)
     Matrix res = { 0 };
     if (m != 0 && n != 0)
     {
+        if (Log_get_verbosity() == LOG_VERB_ALL &&
+            Log_info_threshold(m * n, sizeof(double)))
+        {
+            char buf[128];
+            double mibi_byte_size =
+              1.0 * n * n * sizeof(double) / (double)(1024 * 1024);
+            snprintf(buf,
+                     128,
+                     "Allocated a new matrix of shape (%zu, %zu), %.2f MiB "
+                     "with initial "
+                     "value %f",
+                     m,
+                     n,
+                     mibi_byte_size,
+                     init_val);
+            Log_log(buf, LOG_RT_INFO);
+        }
+
         double* vals = calloc(m * n, sizeof(double));
         if (!vals)
         {
@@ -49,6 +67,8 @@ Matrix Matrix_new(const size_t m, const size_t n, const double init_val)
         }
         if (fabs(init_val) > EPS)
         {
+
+#pragma omp simd
             for (size_t i = 0; i < m * n; i++)
             {
                 vals[i] = init_val;
@@ -72,9 +92,16 @@ Matrix Matrix_new_vals(const size_t m, const size_t n, const double* init_vals)
 
 void Matrix_init_prng(const int seed)
 {
-    if (prng.aux == 0 && prng.state == 0)
+    if (prng.aux != 0 || prng.state != 0)
     {
-        prng = PRNG_State_init(seed);
+        return;
+    }
+    prng = PRNG_State_init(seed);
+    if (Log_get_verbosity() == LOG_VERB_ALL)
+    {
+        char buf[128];
+        snprintf(buf, 128, "Matrix PRNG initialized with seed %zu", prng.state);
+        Log_log(buf, LOG_RT_INFO);
     }
 }
 
@@ -85,6 +112,21 @@ Matrix Matrix_new_random_normal(const size_t m,
 {
 
     Matrix_init_prng(NO_SEED);
+    if (Log_get_verbosity() == LOG_VERB_ALL &&
+        Log_info_threshold(m * n, sizeof(double)))
+    {
+        char buf[128];
+        double mibi_byte_size =
+          1.0 * n * n * sizeof(double) / (double)(1024 * 1024);
+        snprintf(
+          buf,
+          128,
+          "New random normal matrix constructed with shape (%zu, %zu) %f MiB",
+          m,
+          n,
+          mibi_byte_size);
+        Log_log(buf, LOG_RT_INFO);
+    }
 
     Matrix M = Matrix_new(m, n, 0.0);
     for (size_t i = 0; i < m * n; i++)
@@ -101,6 +143,21 @@ Matrix Matrix_new_random_uniform(const size_t m,
 {
     Matrix_init_prng(NO_SEED);
 
+    if (Log_get_verbosity() == LOG_VERB_ALL &&
+        Log_info_threshold(m * n, sizeof(double)))
+    {
+        char buf[128];
+        double mibi_byte_size =
+          1.0 * n * n * sizeof(double) / (double)(1024 * 1024);
+        snprintf(
+          buf,
+          128,
+          "New random uniform matrix constructed with shape (%zu, %zu), %f MiB",
+          m,
+          n,
+          mibi_byte_size);
+        Log_log(buf, LOG_RT_INFO);
+    }
     Matrix M = Matrix_new(m, n, 0);
     for (size_t i = 0; i < m * n; i++)
     {
@@ -125,6 +182,21 @@ Matrix Matrix_new_random_symmetric(const size_t n)
         Matrix_add(&M, &tmp);
 
         Vector_free(&v);
+    }
+    if (Log_get_verbosity() == LOG_VERB_ALL &&
+        Log_info_threshold(n * n, sizeof(double)))
+    {
+        char buf[128];
+        double mibi_byte_size =
+          1.0 * n * n * sizeof(double) / (double)(1024 * 1024);
+        snprintf(buf,
+                 128,
+                 "New random symmetric matrix constructed with shape (%zu, "
+                 "%zu), %.2f MiB",
+                 n,
+                 n,
+                 mibi_byte_size);
+        Log_log(buf, LOG_RT_INFO);
     }
     return M;
 }
@@ -165,6 +237,11 @@ Matrix Matrix_diag(const Vector* v)
 
     Matrix M = Matrix_new(n, n, 0.0);
     _diag_helper(&M, n, v->values);
+    if (Log_get_verbosity() == LOG_VERB_ALL &&
+        Log_info_threshold(n * n, sizeof(double)))
+    {
+        Log_log("Diagonal Matrix constructed from vector", LOG_RT_INFO);
+    }
     return M;
 }
 
@@ -184,7 +261,6 @@ Matrix Matrix_diag_val(const size_t n, const double val)
 void Matrix_copy(Matrix* target, const Matrix* M)
 {
     Matrix_prepare_target(target, M->m, M->n);
-    // target->values = calloc(M->m * M->n, sizeof(double));
     memcpy(target->values, M->values, M->m * M->n * sizeof(double));
     target->m = M->m;
     target->n = M->n;
