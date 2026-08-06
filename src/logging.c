@@ -1,6 +1,12 @@
+
+
 #include "../include/logging.h"
 #include <stdio.h>
 #include <time.h>
+
+#ifndef LOG_INFO_THRESHOLD
+#define LOG_INFO_THRESHOLD (100 * 1024 * 1024)
+#endif // LOG_INFO_THRESHOLD
 
 #define RED "\x1b[31m"
 #define YELLOW "\x1b[33m"
@@ -87,4 +93,15 @@ void Log_log(const char* msg, RecordType rt)
         fprintf(LOG_FILE_PTR, "[%s] %s: %s\n", timestamp, prefix, msg);
         fflush(LOG_FILE_PTR);
     }
+}
+
+LogVerbosity Log_get_verbosity(void)
+{
+    return LOG_VERBOSITY;
+}
+
+bool Log_info_threshold(const size_t count, const size_t object_size)
+{
+    printf("log threshold: %zu\n", LOG_INFO_THRESHOLD);
+    return (count * object_size) >= LOG_INFO_THRESHOLD;
 }
