@@ -1173,11 +1173,88 @@ int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b)
     {
         for (size_t n = 0; n < b->dim; n++)
         {
-            target->values[m * target->n + n] = a->values[m] * b->values[n];
+
+            double value                      = a->values[m] * b->values[n];
+            target->values[m * target->n + n] = value;
         }
     }
 
-    return VECTOR_SUCCESS;
+    return MATRIX_SUCCESS;
+}
+
+int _outer_square_scalar(Matrix* target, const Vector* v, const size_t N)
+{
+    for (size_t m = 0; m < N; m++)
+    {
+        for (size_t n = m; n < N; n++)
+        {
+            double value                      = v->values[m] * v->values[n];
+            target->values[m * target->n + n] = value;
+            target->values[n * target->n + m] = value;
+        }
+    }
+    return MATRIX_SUCCESS;
+}
+
+int _outer_square_parallel(Matrix* target, const Vector* v, const size_t N)
+{
+    const size_t B = 64;
+
+#pragma omp parallel for collapse(2)
+    for (size_t i0 = 0; i0 < N; i0 += B)
+    {
+        for (size_t j0 = 0; j0 < N; j0 += B)
+        {
+            const size_t i_max = (i0 + B < N ? i0 + B : N);
+            const size_t j_max = (j0 + B < N ? j0 + B : N);
+
+            if (i0 < j0)
+            {
+                // upper tile
+                for (size_t i = i0; i < i_max; i++)
+                    for (size_t j = j0; j < j_max; j++)
+                        target->values[i * N + j] = v->values[i] * v->values[j];
+            }
+            else if (i0 > j0)
+            {
+                // lower tile
+                for (size_t i = i0; i < i_max; i++)
+                    for (size_t j = j0; j < j_max; j++)
+                        target->values[i * N + j] = v->values[i] * v->values[j];
+            }
+            else
+            {
+                // diagonal tile: only upper triangle
+                for (size_t i = i0; i < i_max; i++)
+                    for (size_t j = i; j < j_max; j++)
+                        target->values[i * N + j] = v->values[i] * v->values[j];
+            }
+        }
+    }
+
+    return MATRIX_SUCCESS;
+}
+
+int Matrix_Vector_outer_square(Matrix* target, const Vector* v)
+{
+
+    Matrix_prepare_target(target, v->dim, v->dim);
+    if (v->dim > 10)
+    {
+        return _outer_square_parallel(target, v, v->dim);
+    }
+    return _outer_square_scalar(target, v, v->dim);
+#pragma omp parallel for collapse(2)
+    for (size_t m = 0; m < v->dim; m++)
+    {
+        for (size_t n = m; n < v->dim; n++)
+        {
+            double value                      = v->values[m] * v->values[n];
+            target->values[m * target->n + n] = value;
+            target->values[n * target->n + m] = value;
+        }
+    }
+    return MATRIX_SUCCESS;
 }
 
 int Matrix_Hessenberg(Matrix* H, const Matrix* A)
