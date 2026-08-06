@@ -46,7 +46,7 @@ void Vector_prepare_target(Vector* target, const size_t dim)
         return;
     }
 
-    Log_log("Target vector shape mismatch, reallocating", LOG_WARNING);
+    Log_log("Target vector shape mismatch, reallocating", LOG_RT_WARNING);
 
     Vector_free(target);
     *target = Vector_zeros(dim);
@@ -173,7 +173,7 @@ Vector Vector_zeros(const size_t dim)
         res.values = calloc(dim, sizeof(double));
         if (!res.values)
         {
-            Log_log("Error allocating data for Vector_zeros()", LOG_ERROR);
+            Log_log("Error allocating data for Vector_zeros()", LOG_RT_ERROR);
             return (Vector){ 0 };
         }
         res.dim = dim;
@@ -195,7 +195,7 @@ int Vector_get_at(double* target, const Vector* v, const size_t index)
 {
     if (index >= v->dim)
     {
-        Log_log("Dimension error in Vector_get_at()", LOG_ERROR);
+        Log_log("Dimension error in Vector_get_at()", LOG_RT_ERROR);
         return VECTOR_DIMENSION_ERROR;
     }
     *target = v->values[index];
@@ -207,7 +207,7 @@ int Vector_set_item(Vector* v, const size_t index, const double val)
 {
     if (index >= v->dim)
     {
-        Log_log("Dimension error in Vector_set_item()", LOG_ERROR);
+        Log_log("Dimension error in Vector_set_item()", LOG_RT_ERROR);
         return VECTOR_DIMENSION_ERROR;
     }
     v->values[index] = val;
@@ -461,7 +461,7 @@ int Vector_add(Vector* target, const Vector* v)
 {
     if (!Vector_dimension_match(target, v))
     {
-        Log_log("Dimension error in Vector_add()", LOG_ERROR);
+        Log_log("Dimension error in Vector_add()", LOG_RT_ERROR);
         return VECTOR_DIMENSION_ERROR;
     }
 
@@ -506,7 +506,7 @@ int Vector_dot(double* target, const Vector* u, const Vector* v)
 {
     if (!Vector_dimension_match(u, v))
     {
-        Log_log("Dimension error in Vector_sub()", LOG_ERROR);
+        Log_log("Dimension error in Vector_sub()", LOG_RT_ERROR);
         return VECTOR_DIMENSION_ERROR;
     }
     if (u->dim > PARALLEL_THRESHOLD)
@@ -520,7 +520,7 @@ int Vector_sub(Vector* target, const Vector* v)
 {
     if (!Vector_dimension_match(target, v))
     {
-        Log_log("Dimension error in Vector_sub()", LOG_ERROR);
+        Log_log("Dimension error in Vector_sub()", LOG_RT_ERROR);
         return VECTOR_DIMENSION_ERROR;
     }
 
@@ -648,7 +648,7 @@ int Vector_gradient_maximize(Vector* target,
         if (current_status)
         {
             Log_log("A dimension error happened in Vector_gradient_maximize",
-                    LOG_ERROR);
+                    LOG_RT_ERROR);
             return VECTOR_DIMENSION_ERROR;
         }
         count++;

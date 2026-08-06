@@ -31,7 +31,7 @@ static void Matrix_prepare_target(Matrix* target,
     {
         return;
     }
-    Log_log("Target matrix shape mismatch, reallocating", LOG_WARNING);
+    Log_log("Target matrix shape mismatch, reallocating", LOG_RT_WARNING);
     Matrix_free(target);
     *target = Matrix_new(m, n, 0.0);
 }
@@ -44,7 +44,7 @@ Matrix Matrix_new(const size_t m, const size_t n, const double init_val)
         double* vals = calloc(m * n, sizeof(double));
         if (!vals)
         {
-            Log_log("Error allocating memory in Matrix_new()", LOG_ERROR);
+            Log_log("Error allocating memory in Matrix_new()", LOG_RT_ERROR);
             return (Matrix){ 0 };
         }
         if (fabs(init_val) > EPS)
@@ -152,7 +152,7 @@ static void _diag_helper(Matrix* M, const size_t n, const double* val)
     {
         Log_log("An unknown error has occured at "
                 "Matrix_diag()\nReplacing M with zeros",
-                LOG_ERROR);
+                LOG_RT_ERROR);
         Matrix tmp = Matrix_zeros_like(M);
         Matrix_free(M);
         *M = tmp;
@@ -194,7 +194,7 @@ int Matrix_set_at(Matrix* M, const size_t m, const size_t n, const double value)
 {
     if (m >= M->m || n >= M->n)
     {
-        Log_log("Index out of range in Matrix_set_at()!", LOG_ERROR);
+        Log_log("Index out of range in Matrix_set_at()!", LOG_RT_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
     const size_t index = m * M->n + n;
@@ -210,7 +210,7 @@ int Matrix_get_at(double* target,
 {
     if (m >= M->m || n >= M->n)
     {
-        Log_log("Index out of range in Matrix_get_at()!", LOG_ERROR);
+        Log_log("Index out of range in Matrix_get_at()!", LOG_RT_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
 
@@ -317,7 +317,7 @@ void Matrix_print(const Matrix* M)
     }
     if (status != MATRIX_SUCCESS * m * n)
     {
-        Log_log("An unknown problem at Matrix_print", LOG_WARNING);
+        Log_log("An unknown problem at Matrix_print", LOG_RT_WARNING);
     }
 }
 
@@ -374,7 +374,7 @@ int Matrix_add(Matrix* target, const Matrix* M)
 {
     if (target->m != M->m || target->n != M->n)
     {
-        Log_log("Index out of range in Matrix_add()!", LOG_ERROR);
+        Log_log("Index out of range in Matrix_add()!", LOG_RT_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
     for (size_t n = 0; n < M->m * M->n; n++)
@@ -388,7 +388,7 @@ int Matrix_sub(Matrix* target, const Matrix* M)
 {
     if (target->m != M->m || target->n != M->n)
     {
-        Log_log("Index out of range in Matrix_sub()!", LOG_ERROR);
+        Log_log("Index out of range in Matrix_sub()!", LOG_RT_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
     for (size_t n = 0; n < M->m * M->n; n++)
@@ -586,7 +586,7 @@ int Matrix_inverse(Matrix* target, const Matrix* M)
     Matrix_prepare_target(target, M->m, M->n);
     if (M->m != M->n)
     {
-        Log_log("Cannot invert matrix where n!=m", LOG_ERROR);
+        Log_log("Cannot invert matrix where n!=m", LOG_RT_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
     if (M->m == 2 && M->n == 2)
@@ -601,7 +601,7 @@ int Matrix_inverse(Matrix* target, const Matrix* M)
         if (status != MATRIX_SUCCESS * 4)
         {
             Log_log("Dimension error in Matrix_inverse(), 2x2 case.",
-                    LOG_ERROR);
+                    LOG_RT_ERROR);
             return MATRIX_DIMENSION_ERROR;
         }
         const double denom = a * d - b * c;
@@ -609,7 +609,7 @@ int Matrix_inverse(Matrix* target, const Matrix* M)
         {
             Log_log("Math error in Matrix_inverse(), 2x2 case. Matrix is not "
                     "invertable.",
-                    LOG_ERROR);
+                    LOG_RT_ERROR);
             return MATRIX_MATH_ERROR;
         }
         const double scalar = 1 / denom;
@@ -624,7 +624,7 @@ int Matrix_inverse(Matrix* target, const Matrix* M)
     int status = _invert_via_lu(target, M);
     if (status != MATRIX_SUCCESS)
     {
-        Log_log("Unknown math error in Matrix_inverse()", LOG_ERROR);
+        Log_log("Unknown math error in Matrix_inverse()", LOG_RT_ERROR);
         return MATRIX_MATH_ERROR;
     }
 
@@ -635,7 +635,7 @@ int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
 {
     if (M->n != v->dim)
     {
-        Log_log("Index out of range in Matrix_Vector_dot()", LOG_ERROR);
+        Log_log("Index out of range in Matrix_Vector_dot()", LOG_RT_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
     const size_t DIM = M->m;
@@ -663,7 +663,7 @@ int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
 
     if (checksum != DIM * N * MATRIX_SUCCESS)
     {
-        Log_log("Unknown error in Matrix_Vector_dot()", LOG_ERROR);
+        Log_log("Unknown error in Matrix_Vector_dot()", LOG_RT_ERROR);
         return MATRIX_BASIC_ERROR;
     }
 
@@ -674,7 +674,7 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
 {
     if (M1->n != M2->m)
     {
-        Log_log("Index out of range in Matrix_Matrix_dot()", LOG_ERROR);
+        Log_log("Index out of range in Matrix_Matrix_dot()", LOG_RT_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
 
@@ -739,7 +739,7 @@ int Matrix_Vector_solve(Vector* target, const Matrix* M, const Vector* v)
 {
     if (M->n != v->dim || M->m != M->n)
     {
-        Log_log("Dimension error in Matrix_Vector_solve()", LOG_ERROR);
+        Log_log("Dimension error in Matrix_Vector_solve()", LOG_RT_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
     Matrix M_copy = Matrix_new(M->m, M->n, 0);
@@ -820,7 +820,7 @@ int Matrix_column_pivot(Matrix* A, size_t k, size_t* P)
 
     if (k >= n)
     {
-        Log_log("Index out of range in Matrix_column_pivot()", LOG_ERROR);
+        Log_log("Index out of range in Matrix_column_pivot()", LOG_RT_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
 
@@ -865,7 +865,7 @@ int Matrix_Matrix_dot_jordan(Matrix* target, const Matrix* M1, const Matrix* M2)
     if (M1->m != M1->n || M2->m != M2->n || M1->m != M2->m)
     {
         Log_log("Jordan multiplication requires symmetrical matrices",
-                LOG_ERROR);
+                LOG_RT_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
     Matrix_prepare_target(target, M1->m, M1->n);
@@ -961,7 +961,7 @@ int _eigvals_two(Vector* eigenvalues, const Matrix* M)
     Vector_prepare_target(eigenvalues, 2);
     if (inner < 0.0)
     {
-        Log_log("complex eigenvalues encountered", LOG_WARNING);
+        Log_log("complex eigenvalues encountered", LOG_RT_WARNING);
         return MATRIX_MATH_ERROR;
     }
 
