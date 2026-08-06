@@ -388,6 +388,19 @@ void test_matrix_outer(void)
         }
     }
 
+    Vector x = Vector_new_random_normal(N, 0, 1);
+    status   = Matrix_Vector_outer_square(&M, &x);
+
+    for (size_t i = 0; i < N; i++)
+    {
+        for (size_t j = 0; j < N; j++)
+        {
+            const double true_val = x.values[i] * x.values[j];
+            const double val      = M.values[i * N + j];
+            TEST_CHECK(fabs(true_val - val) < EPS);
+        }
+    }
+    Vector_free(&x);
     Vector_free(&v1);
     Vector_free(&v2);
     Matrix_free(&M);
