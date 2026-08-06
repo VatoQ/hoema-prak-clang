@@ -1,5 +1,4 @@
 #include "../include/prng.h"
-#define PARALLEL_THRESHOLD 200000
 #include "../include/vector.h"
 #include "performance_tracker.h"
 #include <math.h>
@@ -40,10 +39,10 @@ void dot_callback(void* ctx)
 
 int main(int argc, char* argv[])
 {
-    const size_t runs   = 10;
+    const size_t runs   = 25;
     const size_t ignore = 3;
     PRNG_State prng     = PRNG_State_init(NO_SEED);
-    const size_t N      = 25000000;
+    const size_t N      = 1000000;
     const Vector u      = Vector_new_random_normal(N, 0, 1);
     const Vector v      = Vector_new_random_normal(N, 0, 1);
     Vector sink         = Vector_zeros(N);
@@ -68,6 +67,7 @@ int main(int argc, char* argv[])
 
     callable_t dot = { dot_callback, &cargs };
     track_performance(runs, ignore, 2 * N, N, "Vector_dot()", dot);
+    printf("par threshold: %d\n", PARALLEL_THRESHOLD);
 
     return EXIT_SUCCESS;
 }
