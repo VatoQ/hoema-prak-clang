@@ -15,20 +15,15 @@
 #define PARALLEL_THRESHOLD 1000
 #endif // PARALLEL_THRESHOLD
 
-#ifndef VECTOR_PARALLEL_LOWER_THRESHOLD
-#define VECTOR_PARALLEL_LOWER_THRESHOLD
-#endif // VECTOR_PARALLEL_LOWER_THRESHOLD
-
-#ifndef VECTOR_PARALLEL_UPPER_THRESHOLD
-#define VECTOR_PARALLEL_UPPER_THRESHOLD
-#endif // VECTOR_PARALLEL_UPPER_THRESHOLD
-
 static PRNG_State prng = { 0 };
 
-static int _parallel_condition(const size_t dim)
+static int _parallel_condition(size_t dim)
 {
-    return (dim >= VECTOR_PARALLEL_LOWER_THRESHOLD) &&
-           (dim <= VECTOR_PARALLEL_UPPER_THRESHOLD);
+    dim *= sizeof(double);
+    const size_t lower = PARALLEL_THRESHOLDS.lower;
+    const size_t upper = PARALLEL_THRESHOLDS.upper;
+
+    return (dim >= lower) && (dim <= upper);
 }
 
 /**
