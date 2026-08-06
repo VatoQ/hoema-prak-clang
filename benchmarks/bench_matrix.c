@@ -126,7 +126,7 @@ int main(int argc, char** argv)
                       "Matrix_Matrix_dot() ",
                       call_mma);
 
-    new_m = 900;
+    new_m = 20000;
 
     Vector outer_left  = Vector_new_random_normal(new_m, 0, 1);
     Vector outer_right = Vector_new_random_normal(new_m, 0, 1);
@@ -137,16 +137,16 @@ int main(int argc, char** argv)
     track_performance(
       runs, ignore, new_m * new_m, new_m, "Matrix_Vector_outer()", call_oa);
 
-    size_t flops_outer  = n * (n + 1) / 2;
-    outer_args osa      = { &Outer_res, &outer_left, &outer_left };
-    callable_t call_osa = { outer_square_callback, &osa };
+    // size_t flops_outer  = n * (n + 1) / 2;
+    // outer_args osa      = { &Outer_res, &outer_left, &outer_left };
+    // callable_t call_osa = { outer_square_callback, &osa };
 
-    track_performance(runs,
-                      ignore,
-                      flops_outer,
-                      new_m,
-                      "Matrix_Vector_outer_square()",
-                      call_osa);
+    // track_performance(runs,
+    //                   ignore,
+    //                   flops_outer,
+    //                   new_m,
+    //                   "Matrix_Vector_outer_square()",
+    //                   call_osa);
 
     Matrix_free(&Outer_res);
     Vector_free(&outer_left);
