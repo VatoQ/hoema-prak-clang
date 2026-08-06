@@ -1,7 +1,6 @@
-#include <stdbool.h>
-#define PARALLEL_THRESHOLD 1000
 #include "../include/matrix.h"
 #include "performance_tracker.h"
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>

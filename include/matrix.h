@@ -39,6 +39,7 @@
 //~- ---------------------- -~//
 ////////////////////////////////
 
+#include "config.h"
 #include <stdbool.h>
 #define MATRIX_EPS 1e-4
 
@@ -370,5 +371,10 @@ void Matrix_Matrix_dot_active(Matrix* H,
                               const Matrix* R,
                               const Matrix* Q,
                               size_t active);
+
+// void Matrix_Vector_dot_batch(Vector** target,
+//                              const Matrix* M,
+//                              const Vector** vs,
+//                              const size_t batch_size);
 
 #endif // MATRIX_H

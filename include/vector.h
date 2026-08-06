@@ -19,6 +19,7 @@ typedef enum
     VECTOR_DIMENSION_ERROR,
 } VectorStatus;
 
+#include "config.h"
 #include <stddef.h>
 
 /**

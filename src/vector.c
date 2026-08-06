@@ -15,7 +15,21 @@
 #define PARALLEL_THRESHOLD 1000
 #endif // PARALLEL_THRESHOLD
 
+#ifndef VECTOR_PARALLEL_LOWER_THRESHOLD
+#define VECTOR_PARALLEL_LOWER_THRESHOLD
+#endif // VECTOR_PARALLEL_LOWER_THRESHOLD
+
+#ifndef VECTOR_PARALLEL_UPPER_THRESHOLD
+#define VECTOR_PARALLEL_UPPER_THRESHOLD
+#endif // VECTOR_PARALLEL_UPPER_THRESHOLD
+
 static PRNG_State prng = { 0 };
+
+static int _parallel_condition(const size_t dim)
+{
+    return (dim >= VECTOR_PARALLEL_LOWER_THRESHOLD) &&
+           (dim <= VECTOR_PARALLEL_UPPER_THRESHOLD);
+}
 
 /**
  * @brief Check status of a given vector.
@@ -46,7 +60,7 @@ void Vector_prepare_target(Vector* target, const size_t dim)
         return;
     }
 
-    Log_log("Target vector shape mismatch, reallocating", LOG_WARNING);
+    Log_log("Target vector shape mismatch, reallocating", LOG_RT_WARNING);
 
     Vector_free(target);
     *target = Vector_zeros(dim);
@@ -108,7 +122,7 @@ Vector Vector_new_copy(const Vector* v)
     return res;
 }
 
-int _all_close_scalar(const Vector* u, const Vector* v)
+static int _all_close_scalar(const Vector* u, const Vector* v)
 {
     for (size_t n = 0; n < u->dim; n++)
     {
@@ -120,7 +134,7 @@ int _all_close_scalar(const Vector* u, const Vector* v)
     return 1;
 }
 
-int _all_close_parallel(const Vector* u, const Vector* v)
+static int _all_close_parallel(const Vector* u, const Vector* v)
 {
     int all_close = 1;
 #pragma omp parallel for
@@ -141,7 +155,7 @@ int Vector_all_close(const Vector* u, const Vector* v)
         return 0;
     }
 
-    if (v->dim > PARALLEL_THRESHOLD)
+    if (_parallel_condition(v->dim))
     {
         return _all_close_parallel(u, v);
     }
@@ -173,7 +187,7 @@ Vector Vector_zeros(const size_t dim)
         res.values = calloc(dim, sizeof(double));
         if (!res.values)
         {
-            Log_log("Error allocating data for Vector_zeros()", LOG_ERROR);
+            Log_log("Error allocating data for Vector_zeros()", LOG_RT_ERROR);
             return (Vector){ 0 };
         }
         res.dim = dim;
@@ -195,7 +209,7 @@ int Vector_get_at(double* target, const Vector* v, const size_t index)
 {
     if (index >= v->dim)
     {
-        Log_log("Dimension error in Vector_get_at()", LOG_ERROR);
+        Log_log("Dimension error in Vector_get_at()", LOG_RT_ERROR);
         return VECTOR_DIMENSION_ERROR;
     }
     *target = v->values[index];
@@ -207,7 +221,7 @@ int Vector_set_item(Vector* v, const size_t index, const double val)
 {
     if (index >= v->dim)
     {
-        Log_log("Dimension error in Vector_set_item()", LOG_ERROR);
+        Log_log("Dimension error in Vector_set_item()", LOG_RT_ERROR);
         return VECTOR_DIMENSION_ERROR;
     }
     v->values[index] = val;
@@ -237,7 +251,7 @@ void Vector_print(Vector* v)
     printf(")");
 }
 
-double _max_parallel(const Vector* v)
+static double _max_parallel(const Vector* v)
 {
     double max = -INFINITY;
 
@@ -252,7 +266,7 @@ double _max_parallel(const Vector* v)
     return max;
 }
 
-double _max_scalar(const Vector* v)
+static double _max_scalar(const Vector* v)
 {
     double max = -INFINITY;
 
@@ -268,14 +282,14 @@ double _max_scalar(const Vector* v)
 
 double Vector_max(const Vector* v)
 {
-    if (v->dim > PARALLEL_THRESHOLD)
+    if (_parallel_condition(v->dim))
     {
         return _max_parallel(v);
     }
     return _max_scalar(v);
 }
 
-double _min_parallel(const Vector* v)
+static double _min_parallel(const Vector* v)
 {
     double min = INFINITY;
 
@@ -290,7 +304,7 @@ double _min_parallel(const Vector* v)
     return min;
 }
 
-double _min_scalar(const Vector* v)
+static double _min_scalar(const Vector* v)
 {
     double min = INFINITY;
 
@@ -306,14 +320,14 @@ double _min_scalar(const Vector* v)
 
 double Vector_min(const Vector* v)
 {
-    if (v->dim > PARALLEL_THRESHOLD)
+    if (_parallel_condition(v->dim))
     {
         return _min_parallel(v);
     }
     return _min_scalar(v);
 }
 
-void _insertion_sort(Vector* v, size_t low, size_t high)
+static void _insertion_sort(Vector* v, size_t low, size_t high)
 {
     for (size_t i = low + 1; i <= high; ++i)
     {
@@ -329,14 +343,14 @@ void _insertion_sort(Vector* v, size_t low, size_t high)
     }
 }
 
-void _swap(Vector* v, const size_t i, const size_t j)
+static void _swap(Vector* v, const size_t i, const size_t j)
 {
     double tmp   = v->values[i];
     v->values[i] = v->values[j];
     v->values[j] = tmp;
 }
 
-void _heapify(Vector* v, size_t low, const size_t n, const size_t i)
+static void _heapify(Vector* v, size_t low, const size_t n, const size_t i)
 {
     size_t largest = i;
     size_t l       = 2 * i + 1;
@@ -359,7 +373,7 @@ void _heapify(Vector* v, size_t low, const size_t n, const size_t i)
     }
 }
 
-void _heapsort(Vector* v, size_t low, size_t high)
+static void _heapsort(Vector* v, size_t low, size_t high)
 {
     const size_t n = high - low + 1;
 
@@ -376,7 +390,7 @@ void _heapsort(Vector* v, size_t low, size_t high)
     }
 }
 
-size_t _partition(Vector* v, size_t low, size_t high)
+static size_t _partition(Vector* v, size_t low, size_t high)
 {
     double pivot = v->values[high];
     size_t i     = low - 1;
@@ -394,7 +408,7 @@ size_t _partition(Vector* v, size_t low, size_t high)
     return i + 1;
 }
 
-void _introsort(Vector* v, size_t low, size_t high, int depth_limit)
+static void _introsort(Vector* v, size_t low, size_t high, int depth_limit)
 {
     if (low >= high)
     {
@@ -461,7 +475,7 @@ int Vector_add(Vector* target, const Vector* v)
 {
     if (!Vector_dimension_match(target, v))
     {
-        Log_log("Dimension error in Vector_add()", LOG_ERROR);
+        Log_log("Dimension error in Vector_add()", LOG_RT_ERROR);
         return VECTOR_DIMENSION_ERROR;
     }
 
@@ -474,7 +488,7 @@ int Vector_add(Vector* target, const Vector* v)
     return VECTOR_SUCCESS;
 }
 
-int _dot_scalar(double* target, const Vector* u, const Vector* v)
+static int _dot_scalar(double* target, const Vector* u, const Vector* v)
 {
     double s                  = 0.0;
     double* restrict u_values = u->values;
@@ -489,7 +503,7 @@ int _dot_scalar(double* target, const Vector* u, const Vector* v)
     return VECTOR_SUCCESS;
 }
 
-int _dot_parallel(double* target, const Vector* u, const Vector* v)
+static int _dot_parallel(double* target, const Vector* u, const Vector* v)
 {
     double s = 0.0;
 
@@ -506,10 +520,10 @@ int Vector_dot(double* target, const Vector* u, const Vector* v)
 {
     if (!Vector_dimension_match(u, v))
     {
-        Log_log("Dimension error in Vector_sub()", LOG_ERROR);
+        Log_log("Dimension error in Vector_sub()", LOG_RT_ERROR);
         return VECTOR_DIMENSION_ERROR;
     }
-    if (u->dim > PARALLEL_THRESHOLD)
+    if (_parallel_condition(v->dim))
     {
         return _dot_parallel(target, u, v);
     }
@@ -520,7 +534,7 @@ int Vector_sub(Vector* target, const Vector* v)
 {
     if (!Vector_dimension_match(target, v))
     {
-        Log_log("Dimension error in Vector_sub()", LOG_ERROR);
+        Log_log("Dimension error in Vector_sub()", LOG_RT_ERROR);
         return VECTOR_DIMENSION_ERROR;
     }
 
@@ -648,7 +662,7 @@ int Vector_gradient_maximize(Vector* target,
         if (current_status)
         {
             Log_log("A dimension error happened in Vector_gradient_maximize",
-                    LOG_ERROR);
+                    LOG_RT_ERROR);
             return VECTOR_DIMENSION_ERROR;
         }
         count++;

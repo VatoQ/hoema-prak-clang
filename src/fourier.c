@@ -1,5 +1,6 @@
 #include "../include/fourier.h"
 
+#include "../include/logging.h"
 #include <complex.h>
 #include <math.h>
 #include <omp.h>
@@ -92,6 +93,7 @@ int fourier_worker_fft(DataPoints* target, const DataPoints* source, bool to)
     memcpy(target->data, buf, M * sizeof(double complex));
 
     free(buf);
+    Log_log("Performed FFT.", LOG_RT_INFO);
     return FFT;
 }
 
