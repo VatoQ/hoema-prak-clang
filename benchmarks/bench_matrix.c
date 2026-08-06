@@ -126,7 +126,7 @@ int main(int argc, char** argv)
                       "Matrix_Matrix_dot() ",
                       call_mma);
 
-    new_m = 600;
+    new_m = 900;
 
     Vector outer_left  = Vector_new_random_normal(new_m, 0, 1);
     Vector outer_right = Vector_new_random_normal(new_m, 0, 1);
