@@ -356,6 +356,8 @@ int Matrix_eigvals(Vector* eigenvalues, const Matrix* M, bool sort);
  */
 int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b);
 
+int Matrix_Vector_outer_square(Matrix* target, const Vector* v);
+
 /**
  * @brief Compute the Hassenberg reduction of the matrix `A` into `H`.
  *
