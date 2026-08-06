@@ -370,6 +370,29 @@ void test_matrix_eigenvalues(void)
     Vector_free(&eigs);
 }
 
+void test_matrix_outer(void)
+{
+    const size_t N = 100;
+    Vector v1      = Vector_new_random_normal(N, 0, 1);
+    Vector v2      = Vector_new_random_normal(N, 0, 1);
+    Matrix M       = Matrix_new(N, N, 0);
+
+    int status = Matrix_Vector_outer(&M, &v1, &v2);
+    for (size_t i = 0; i < N; i++)
+    {
+        for (size_t j = 0; j < N; j++)
+        {
+            const double true_val = v1.values[i] * v2.values[j];
+            const double val      = M.values[i * N + j];
+            TEST_CHECK(fabs(true_val - val) < EPS);
+        }
+    }
+
+    Vector_free(&v1);
+    Vector_free(&v2);
+    Matrix_free(&M);
+}
+
 TEST_LIST = { { "matrix_create", test_matrix_create },
               { "test_matrix_symmetric", test_matrix_symmetric },
               { "matrix_add", test_matrix_add },
@@ -387,4 +410,5 @@ TEST_LIST = { { "matrix_create", test_matrix_create },
               { "matrix_matrix_dot_jordan", test_matrix_matrix_dot_jordan },
               { "matrix_test_norm", matrix_test_norm },
               { "test_matrix_eigenvalues", test_matrix_eigenvalues },
+              { "test_matrix_outer", test_matrix_outer },
               { NULL, NULL } };
