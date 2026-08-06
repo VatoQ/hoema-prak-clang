@@ -1168,6 +1168,7 @@ int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b)
 {
     Matrix_prepare_target(target, a->dim, b->dim);
 
+#pragma omp parallel for // parallel outer basically always faster
     for (size_t m = 0; m < a->dim; m++)
     {
         for (size_t n = 0; n < b->dim; n++)
