@@ -356,6 +356,7 @@ int Matrix_eigvals(Vector* eigenvalues, const Matrix* M, bool sort);
  */
 int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b);
 
+// deprecated, gets outperformed by naiive outer product
 int Matrix_Vector_outer_square(Matrix* target, const Vector* v);
 
 /**
