@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200112L
 #include "../include/matrix.h"
 #include "../include/logging.h"
 #include "../include/prng.h"
@@ -59,8 +60,8 @@ Matrix Matrix_new(const size_t m, const size_t n, const double init_val)
             Log_log(buf, LOG_RT_INFO);
         }
 
-        double* vals = calloc(m * n, sizeof(double));
-        if (!vals)
+        double* vals = NULL;
+        if (posix_memalign((void**)&vals, 32, m * n * sizeof(double)) != 0)
         {
             Log_log("Error allocating memory in Matrix_new()", LOG_RT_ERROR);
             return (Matrix){ 0 };
@@ -68,7 +69,7 @@ Matrix Matrix_new(const size_t m, const size_t n, const double init_val)
         if (fabs(init_val) > EPS)
         {
 
-#pragma omp simd
+#pragma omp simd aligned(vals : 32)
             for (size_t i = 0; i < m * n; i++)
             {
                 vals[i] = init_val;
@@ -516,7 +517,7 @@ static int _invert_n_n_matrix(Matrix* target, const Matrix* M)
         double inv_pivot = 1.0 / pivot;
 
         // Scale pivot row in A and B
-#pragma omp simd
+#pragma omp simd aligned(A, B : 32)
         for (size_t j = 0; j < n; ++j)
         {
             A[k * n + j] *= inv_pivot;
@@ -536,7 +537,7 @@ static int _invert_n_n_matrix(Matrix* target, const Matrix* M)
                 continue;
             }
 
-#pragma omp simd
+#pragma omp simd aligned(A, B : 32)
             for (size_t j = 0; j < n; ++j)
             {
                 A[i * n + j] -= lambda * A[k * n + j];
@@ -579,7 +580,7 @@ static int _lu_decompose(Matrix* target, const Matrix* M)
 
             double lik = A[i * n + k];
 
-#pragma omp simd
+#pragma omp simd aligned(A : 32)
             for (size_t j = k + 1; j < n; ++j)
             {
                 A[i * n + j] -= lik * A[k * n + j];
@@ -717,30 +718,24 @@ int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
     const size_t DIM = M->m;
     const size_t N   = M->n;
     Vector_prepare_target(target, DIM);
-    int checksum              = 0;
-    double* restrict M_values = M->values;
-    double* restrict v_values = v->values;
-    double sum                = 0.0;
+    double* restrict M_values      = M->values;
+    double* restrict v_values      = v->values;
+    double* restrict target_values = target->values;
+    double sum                     = 0.0;
     double M_val, V_val;
 
 #pragma omp parallel for
     for (size_t d = 0; d < DIM; d++)
     {
         sum = 0.0;
-#pragma omp simd
+#pragma omp simd aligned(M_values, v_values : 32)
         for (size_t n = 0; n < N; n++)
         {
             M_val = M_values[d * M->n + n];
             V_val = v_values[n];
             sum += M_val * V_val;
         }
-        target->values[d] = sum;
-    }
-
-    if (checksum != DIM * N * MATRIX_SUCCESS)
-    {
-        Log_log("Unknown error in Matrix_Vector_dot()", LOG_RT_ERROR);
-        return MATRIX_BASIC_ERROR;
+        target_values[d] = sum;
     }
 
     return MATRIX_SUCCESS;
@@ -756,21 +751,21 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
 
     Matrix_prepare_target(target, M1->n, M2->m);
 
-    int status                     = 0;
     double* restrict M1_values     = M1->values;
     double* restrict M2_values     = M2->values;
     double* restrict target_values = target->values;
     double sum                     = 0.0;
     double a, b;
+    size_t K = M1->n;
 
+#pragma omp parallel for collapse(2)
     for (size_t m = 0; m < target->m; m++)
     {
-#pragma omp parallel for
         for (size_t n = 0; n < target->n; n++)
         {
             sum = 0.0;
 
-#pragma omp simd
+#pragma omp simd aligned(M1_values, M2_values, target_values : 32)
             for (size_t o = 0; o < M1->n; o++)
             {
                 a = M1_values[m * M1->n + o];
@@ -1082,12 +1077,14 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
     Matrix Q;
     Q.m      = H.m;
     Q.n      = H.n;
-    Q.values = malloc(Q.m * Q.n * sizeof(double));
+    Q.values = NULL;
+    posix_memalign((void**)&Q.values, 32, Q.m * Q.n * sizeof(double));
 
     Matrix R;
     R.m      = H.m;
     R.n      = H.n;
-    R.values = malloc(Q.m * Q.n * sizeof(double));
+    R.values = NULL;
+    posix_memalign((void**)&R.values, 32, Q.m * Q.n * sizeof(double));
 
     size_t n      = H.n;
     size_t active = n;
@@ -1252,18 +1249,22 @@ int Matrix_Hessenberg(Matrix* H, const Matrix* A)
     }
 
     Matrix_copy(H, A);
+    double* restrict H_values = H->values;
 
     for (size_t k = 0; k < m - 2; k++)
     {
         size_t rows = m - (k + 1);
 
         Vector x;
-        x.values     = malloc(rows * sizeof(double));
+        x.values = NULL;
+        // x.values = malloc(rows * sizeof(double));
+        posix_memalign((void**)&x.values, 32, rows * sizeof(double));
         x.dim        = rows;
         double normx = 0.0;
+
         for (size_t i = 0; i < rows; i++)
         {
-            double val  = H->values[(k + 1 + i) * n + k];
+            double val  = H_values[(k + 1 + i) * n + k];
             x.values[i] = val;
             normx += val * val;
         }
@@ -1280,8 +1281,10 @@ int Matrix_Hessenberg(Matrix* H, const Matrix* A)
         e1.values[0] = 1.0;
 
         Vector v;
-        v.values = malloc(x.dim * sizeof(double));
-        v.dim    = x.dim;
+        // v.values = malloc(x.dim * sizeof(double));
+        v.values = NULL;
+        posix_memalign((void**)&v.values, 32, x.dim * sizeof(double));
+        v.dim = x.dim;
         Vector_copy(&v, &x);
         Vector_scale(&e1, sign * normx);
         Vector_add(&v, &e1);
@@ -1295,19 +1298,23 @@ int Matrix_Hessenberg(Matrix* H, const Matrix* A)
         }
         vnorm = sqrt(vnorm);
 
-        Vector_scale(&v, 1.0 / vnorm);
+        // Vector_scale(&v, 1.0 / vnorm);
+        for (size_t i = 0; i < v.dim; i++)
+        {
+            v.values[i] /= vnorm;
+        }
 
         for (size_t j = k; j < n; j++)
         {
             double dot = 0.0;
             for (size_t i = 0; i < rows; i++)
             {
-                dot += v.values[i] * H->values[(k + 1 + i) * n + j];
+                dot += v.values[i] * H_values[(k + 1 + i) * n + j];
             }
 
             for (size_t i = 0; i < rows; i++)
             {
-                H->values[(k + 1 + i) * n + j] -= 2.0 * v.values[i] * dot;
+                H_values[(k + 1 + i) * n + j] -= 2.0 * v.values[i] * dot;
             }
         }
 
@@ -1316,11 +1323,11 @@ int Matrix_Hessenberg(Matrix* H, const Matrix* A)
             double dot = 0.0;
             for (size_t r = 0; r < rows; r++)
             {
-                dot += H->values[i * n + (k + 1 + r)] * v.values[r];
+                dot += H_values[i * n + (k + 1 + r)] * v.values[r];
             }
             for (size_t r = 0; r < rows; r++)
             {
-                H->values[i * n + (k + 1 + r)] -= 2.0 * dot * v.values[r];
+                H_values[i * n + (k + 1 + r)] -= 2.0 * dot * v.values[r];
             }
         }
         Vector_free(&v);
@@ -1382,9 +1389,11 @@ void Matrix_Matrix_dot_active(Matrix* H,
     size_t n = H->n;
 
     Matrix tmp;
-    tmp.values = malloc(H->m * H->n * sizeof(double));
-    tmp.m      = H->m;
-    tmp.n      = H->n;
+    // tmp.values = malloc(H->m * H->n * sizeof(double));
+    tmp.values = NULL;
+    posix_memalign((void**)&tmp.values, 32, H->m * H->n * sizeof(double));
+    tmp.m = H->m;
+    tmp.n = H->n;
 
     for (size_t i = 0; i < active; i++)
     {
