@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS  = -O3 -march=native -ffast-math -Iinclude -fopenmp -std=c17 \
-			-fopt-info-all=opt_details.txt
+			-fopt-info-all=.opt_details.txt
 LDFLAGS = -lm
 
 SRC_DIR = src
@@ -103,7 +103,7 @@ opt_report: $(OPT_REPORT)
 	@echo "======================================" >> $(OPT_REPORT)
 	@echo "" >> $(OPT_REPORT)
 	
-	@if [ -f opt_details.txt ]; then \
+	@if [ -f .opt_details.txt ]; then \
 	    echo "Appending GCC optimization details..." >> $(OPT_REPORT); \
 	    cat opt_details.txt >> $(OPT_REPORT); \
 	else \
