@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200112L
 #include "../include/vector.h"
 #include "../include/logging.h"
 #include "../include/prng.h"
@@ -15,20 +16,14 @@
 #define PARALLEL_THRESHOLD 1000
 #endif // PARALLEL_THRESHOLD
 
-#ifndef VECTOR_PARALLEL_LOWER_THRESHOLD
-#define VECTOR_PARALLEL_LOWER_THRESHOLD
-#endif // VECTOR_PARALLEL_LOWER_THRESHOLD
-
-#ifndef VECTOR_PARALLEL_UPPER_THRESHOLD
-#define VECTOR_PARALLEL_UPPER_THRESHOLD
-#endif // VECTOR_PARALLEL_UPPER_THRESHOLD
-
 static PRNG_State prng = { 0 };
 
-static int _parallel_condition(const size_t dim)
+static int _parallel_condition(size_t dim)
 {
-    return (dim >= VECTOR_PARALLEL_LOWER_THRESHOLD) &&
-           (dim <= VECTOR_PARALLEL_UPPER_THRESHOLD);
+    const size_t lower = PARALLEL_THRESHOLDS.lower;
+    const size_t upper = PARALLEL_THRESHOLDS.upper;
+
+    return (dim >= lower) && (dim <= upper);
 }
 
 /**
@@ -155,7 +150,7 @@ int Vector_all_close(const Vector* u, const Vector* v)
         return 0;
     }
 
-    if (_parallel_condition(v->dim))
+    if (_parallel_condition(v->dim * sizeof(double)))
     {
         return _all_close_parallel(u, v);
     }
@@ -184,11 +179,16 @@ Vector Vector_zeros(const size_t dim)
     Vector res = { 0 };
     if (dim > 0)
     {
-        res.values = calloc(dim, sizeof(double));
-        if (!res.values)
+        res.values = NULL;
+        if (posix_memalign((void**)&res.values, 32, dim * sizeof(double)) != 0)
         {
             Log_log("Error allocating data for Vector_zeros()", LOG_RT_ERROR);
             return (Vector){ 0 };
+        }
+#pragma omp simd
+        for (size_t i = 0; i < dim; i++)
+        {
+            res.values[i] = 0.0;
         }
         res.dim = dim;
     }
@@ -282,7 +282,7 @@ static double _max_scalar(const Vector* v)
 
 double Vector_max(const Vector* v)
 {
-    if (_parallel_condition(v->dim))
+    if (_parallel_condition(v->dim * sizeof(double)))
     {
         return _max_parallel(v);
     }
@@ -320,7 +320,7 @@ static double _min_scalar(const Vector* v)
 
 double Vector_min(const Vector* v)
 {
-    if (_parallel_condition(v->dim))
+    if (_parallel_condition(v->dim * sizeof(double)))
     {
         return _min_parallel(v);
     }
@@ -523,7 +523,7 @@ int Vector_dot(double* target, const Vector* u, const Vector* v)
         Log_log("Dimension error in Vector_sub()", LOG_RT_ERROR);
         return VECTOR_DIMENSION_ERROR;
     }
-    if (_parallel_condition(v->dim))
+    if (_parallel_condition(v->dim * sizeof(double)))
     {
         return _dot_parallel(target, u, v);
     }

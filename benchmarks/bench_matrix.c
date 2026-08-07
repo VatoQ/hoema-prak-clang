@@ -56,12 +56,33 @@ void m_dot_v_callback(void* ctx)
     m_dot_v_args* a = ctx;
     Matrix_Vector_dot(a->target, a->M, a->v);
 }
+
+typedef struct
+{
+    Matrix* target;
+    const Vector *u, *v;
+
+} outer_args;
+
+void outer_callback(void* ctx)
+{
+    outer_args* a = ctx;
+    Matrix_Vector_outer(a->target, a->u, a->v);
+}
+
+void outer_square_callback(void* ctx)
+{
+
+    outer_args* a = ctx;
+    Matrix_Vector_outer_square(a->target, a->u);
+}
+
 int main(int argc, char** argv)
 {
-    const size_t runs   = 6;
+    const size_t runs   = 8;
     const size_t ignore = 2;
 
-    const size_t m     = 100;
+    const size_t m     = 150;
     const size_t n     = m;
     const size_t FLOPS = (size_t)(8.0 / 3.0 * n * n * n);
     Matrix M           = Matrix_new_random_symmetric(m);
@@ -80,7 +101,7 @@ int main(int argc, char** argv)
     Vector_free(&eigenvalues);
 
     Matrix_free(&M);
-    const size_t new_m  = 4 * m;
+    size_t new_m        = m * 3;
     M                   = Matrix_new_random_symmetric(new_m);
     Vector v            = Vector_new_random_normal(new_m, 0, 1);
     Vector target       = Vector_zeros_like(&v);
@@ -104,6 +125,37 @@ int main(int argc, char** argv)
                       new_m,
                       "Matrix_Matrix_dot() ",
                       call_mma);
+
+    new_m = 250;
+    // 120 probably cutoff
+
+    Vector outer_left  = Vector_new_random_normal(new_m, 0, 1);
+    Vector outer_right = Vector_new_random_normal(new_m, 0, 1);
+    Matrix Outer_res   = Matrix_new(new_m, new_m, 0);
+
+    outer_args oa      = { &Outer_res, &outer_left, &outer_right };
+    callable_t call_oa = { outer_callback, &oa };
+    track_performance(
+      runs, ignore, new_m * new_m, new_m, "Matrix_Vector_outer()", call_oa);
+
+    size_t flops_outer = new_m * (new_m + 1) / 2;
+    if (new_m > 110)
+    {
+        flops_outer = new_m * new_m;
+    }
+    outer_args osa      = { &Outer_res, &outer_left, &outer_left };
+    callable_t call_osa = { outer_square_callback, &osa };
+
+    track_performance(runs,
+                      ignore,
+                      flops_outer,
+                      new_m,
+                      "Matrix_Vector_outer_square()",
+                      call_osa);
+
+    Matrix_free(&Outer_res);
+    Vector_free(&outer_left);
+    Vector_free(&outer_right);
 
     Matrix_free(&M2);
     Matrix_free(&M2M_res);

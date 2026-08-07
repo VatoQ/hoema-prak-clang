@@ -183,10 +183,25 @@ void test_vector_dot(void)
     double dot      = 0.0;
     double sink     = 0.0;
     int status      = Vector_dot(&dot, &u, &v);
-    int err_status  = Vector_dot(&dot, &u, &w);
+    int err_status  = Vector_dot(&sink, &u, &w);
     TEST_CHECK(fabs(dot - (2 * 3 + 3 * 4 + 4 + 5 * 4)) < EPS);
     TEST_CHECK(status == VECTOR_SUCCESS);
     TEST_CHECK(err_status == VECTOR_DIMENSION_ERROR);
+    Vector_free(&u);
+    Vector_free(&v);
+    Vector_free(&w);
+
+    Vector v1 = Vector_new_random_normal(200000, 0, 1);
+    Vector v2 = Vector_new_random_normal(200000, 0, 1);
+    status    = Vector_dot(&dot, &v1, &v2);
+    double s  = 0.0;
+    for (size_t i = 0; i < v1.dim; i++)
+    {
+        s += v1.values[i] * v2.values[i];
+    }
+    TEST_CHECK(fabs(s - dot) < EPS);
+    Vector_free(&v1);
+    Vector_free(&v2);
 }
 
 static double test_func_square(const Vector* x)
@@ -261,7 +276,7 @@ void test_vector_gradient_minimize(void)
 
 void test_vector_sort(void)
 {
-    const size_t N = 2000;
+    const size_t N = 1000000;
     Vector v       = Vector_new_random_uniform(N, 0, 1);
     Vector_sort_inplace(&v);
 

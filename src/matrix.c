@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200112L
 #include "../include/matrix.h"
 #include "../include/logging.h"
 #include "../include/prng.h"
@@ -59,8 +60,8 @@ Matrix Matrix_new(const size_t m, const size_t n, const double init_val)
             Log_log(buf, LOG_RT_INFO);
         }
 
-        double* vals = calloc(m * n, sizeof(double));
-        if (!vals)
+        double* vals = NULL;
+        if (posix_memalign((void**)&vals, 32, m * n * sizeof(double)) != 0)
         {
             Log_log("Error allocating memory in Matrix_new()", LOG_RT_ERROR);
             return (Matrix){ 0 };
@@ -68,7 +69,7 @@ Matrix Matrix_new(const size_t m, const size_t n, const double init_val)
         if (fabs(init_val) > EPS)
         {
 
-#pragma omp simd
+#pragma omp simd aligned(vals : 32)
             for (size_t i = 0; i < m * n; i++)
             {
                 vals[i] = init_val;
@@ -516,7 +517,7 @@ static int _invert_n_n_matrix(Matrix* target, const Matrix* M)
         double inv_pivot = 1.0 / pivot;
 
         // Scale pivot row in A and B
-#pragma omp simd
+#pragma omp simd aligned(A, B : 32)
         for (size_t j = 0; j < n; ++j)
         {
             A[k * n + j] *= inv_pivot;
@@ -536,7 +537,7 @@ static int _invert_n_n_matrix(Matrix* target, const Matrix* M)
                 continue;
             }
 
-#pragma omp simd
+#pragma omp simd aligned(A, B : 32)
             for (size_t j = 0; j < n; ++j)
             {
                 A[i * n + j] -= lambda * A[k * n + j];
@@ -579,7 +580,7 @@ static int _lu_decompose(Matrix* target, const Matrix* M)
 
             double lik = A[i * n + k];
 
-#pragma omp simd
+#pragma omp simd aligned(A : 32)
             for (size_t j = k + 1; j < n; ++j)
             {
                 A[i * n + j] -= lik * A[k * n + j];
@@ -717,30 +718,24 @@ int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
     const size_t DIM = M->m;
     const size_t N   = M->n;
     Vector_prepare_target(target, DIM);
-    int checksum              = 0;
-    double* restrict M_values = M->values;
-    double* restrict v_values = v->values;
-    double sum                = 0.0;
+    double* restrict M_values      = M->values;
+    double* restrict v_values      = v->values;
+    double* restrict target_values = target->values;
+    double sum                     = 0.0;
     double M_val, V_val;
 
 #pragma omp parallel for
     for (size_t d = 0; d < DIM; d++)
     {
         sum = 0.0;
-#pragma omp simd
+#pragma omp simd aligned(M_values, v_values : 32)
         for (size_t n = 0; n < N; n++)
         {
             M_val = M_values[d * M->n + n];
             V_val = v_values[n];
             sum += M_val * V_val;
         }
-        target->values[d] = sum;
-    }
-
-    if (checksum != DIM * N * MATRIX_SUCCESS)
-    {
-        Log_log("Unknown error in Matrix_Vector_dot()", LOG_RT_ERROR);
-        return MATRIX_BASIC_ERROR;
+        target_values[d] = sum;
     }
 
     return MATRIX_SUCCESS;
@@ -756,21 +751,21 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
 
     Matrix_prepare_target(target, M1->n, M2->m);
 
-    int status                     = 0;
     double* restrict M1_values     = M1->values;
     double* restrict M2_values     = M2->values;
     double* restrict target_values = target->values;
     double sum                     = 0.0;
     double a, b;
+    size_t K = M1->n;
 
+#pragma omp parallel for collapse(2)
     for (size_t m = 0; m < target->m; m++)
     {
-#pragma omp parallel for
         for (size_t n = 0; n < target->n; n++)
         {
             sum = 0.0;
 
-#pragma omp simd
+#pragma omp simd aligned(M1_values, M2_values, target_values : 32)
             for (size_t o = 0; o < M1->n; o++)
             {
                 a = M1_values[m * M1->n + o];
@@ -1024,6 +1019,85 @@ int Matrix_QR(Matrix* Q, Matrix* R, const Matrix* A)
     return MATRIX_SUCCESS;
 }
 
+void _Matrix_Matrix_dot_active_raw(double* restrict H_values,
+                                   const double* restrict R_values,
+                                   const double* restrict Q_values,
+                                   const size_t active,
+                                   const size_t m,
+                                   const size_t n)
+{
+    double* tmp_values = NULL;
+    posix_memalign((void**)&tmp_values, 32, m * n * sizeof(double));
+
+    for (size_t i = 0; i < active; i++)
+    {
+#pragma omp simd aligned(R_values, Q_values : 32)
+        for (size_t j = 0; j < active; j++)
+        {
+            double sum = 0.0;
+            for (size_t k = 0; k < active; k++)
+                sum += R_values[i * n + k] * Q_values[k * n + j];
+
+            tmp_values[i * n + j] = sum;
+        }
+    }
+
+    // Copy back only active block
+#pragma omp simd aligned(H_values, tmp_values : 32)
+    for (size_t i = 0; i < active; i++)
+        for (size_t j = 0; j < active; j++)
+            H_values[i * n + j] = tmp_values[i * n + j];
+
+    free(tmp_values);
+}
+
+void _Matrix_QR_hessenberg_raw(double* restrict Q_values,
+                               double* restrict R_values,
+                               double* restrict H_values,
+                               size_t active,
+                               const size_t n)
+{
+    for (size_t i = 0; i < n; i++)
+    {
+        for (size_t j = 0; j < n; j++)
+        {
+            Q_values[i * n + j] = (i == j ? 1.0 : 0.0);
+        }
+    }
+    memcpy(R_values, H_values, n * n * sizeof(double));
+    for (size_t i = 0; i < active - 1; i++)
+    {
+        double a = R_values[i * n + i];
+        double b = R_values[(i + 1) * n + i];
+
+        if (fabs(b) < 1e-15)
+        {
+            continue;
+        }
+
+        double r = hypot(a, b);
+        double c = a / r;
+        double s = -b / r;
+#pragma omp simd aligned(R_values : 32)
+        for (size_t j = i; j < active; j++)
+        {
+            double t1                 = R_values[i * n + j];
+            double t2                 = R_values[(i + 1) * n + j];
+            R_values[i * n + j]       = c * t1 - s * t2;
+            R_values[(i + 1) * n + j] = s * t1 + c * t2;
+        }
+
+#pragma omp simd aligned(Q_values : 32)
+        for (size_t j = 0; j < active; j++)
+        {
+            double t1                 = Q_values[j * n + i];
+            double t2                 = Q_values[j * n + (i + 1)];
+            Q_values[j * n + i]       = c * t1 - s * t2;
+            Q_values[j * n + (i + 1)] = s * t1 + c * t2;
+        }
+    }
+}
+
 int _eigvals_two(Vector* eigenvalues, const Matrix* M)
 {
     const double a = M->values[0];
@@ -1079,13 +1153,25 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
 
     Matrix H = Matrix_zeros_like(M);
     Matrix_Hessenberg(&H, M); // Q^T M Q → upper Hessenberg
-    Matrix Q = Matrix_zeros_like(&H);
-    Matrix R = Matrix_zeros_like(&H);
+    Matrix Q;
+    Q.m      = H.m;
+    Q.n      = H.n;
+    Q.values = NULL;
+    posix_memalign((void**)&Q.values, 32, Q.m * Q.n * sizeof(double));
+
+    Matrix R;
+    R.m      = H.m;
+    R.n      = H.n;
+    R.values = NULL;
+    posix_memalign((void**)&R.values, 32, Q.m * Q.n * sizeof(double));
 
     size_t n      = H.n;
     size_t active = n;
 
-    size_t total_iters = 0;
+    size_t total_iters        = 0;
+    double* restrict H_values = H.values;
+    double* restrict Q_values = Q.values;
+    double* restrict R_values = R.values;
 
     while (active > 1)
     {
@@ -1101,13 +1187,20 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
 
             double mu = _wilkinson_shift(&H, active);
 
+#pragma omp simd
             for (size_t i = 0; i < active; i++)
             {
-                H.values[i * n + i] -= mu;
+                // H.values[i * n + i] -= mu;
+                H_values[i * n + i] -= mu;
             }
-            Matrix_QR_hessenberg(&Q, &R, &H, active);
-            Matrix_Matrix_dot_active(&H, &R, &Q, active);
+            // Matrix_QR_hessenberg(&Q, &R, &H, active);
+            _Matrix_QR_hessenberg_raw(
+              Q_values, R_values, H_values, active, Q.n);
+            // Matrix_Matrix_dot_active(&H, &R, &Q, active);
+            _Matrix_Matrix_dot_active_raw(
+              H_values, R_values, Q_values, active, H.m, H.n);
 
+#pragma omp simd
             for (size_t i = 0; i < active; i++)
             {
                 H.values[i * n + i] += mu;
@@ -1138,6 +1231,7 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
         }
     }
     Vector_prepare_target(eigenvalues, n);
+#pragma omp simd
     for (size_t i = 0; i < n; i++)
     {
         eigenvalues->values[i] = H.values[i * n + i];
@@ -1164,19 +1258,72 @@ int Matrix_eigvals(Vector* eigenvalues, const Matrix* M, bool sort)
     return _eigvals_big(eigenvalues, M, sort);
 }
 
-int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b)
+int _outer_scalar(Matrix* target, const Vector* a, const Vector* b)
 {
-    Matrix_prepare_target(target, a->dim, b->dim);
-
     for (size_t m = 0; m < a->dim; m++)
     {
         for (size_t n = 0; n < b->dim; n++)
         {
-            target->values[m * target->n + n] = a->values[m] * b->values[n];
+
+            double value                      = a->values[m] * b->values[n];
+            target->values[m * target->n + n] = value;
         }
     }
 
-    return VECTOR_SUCCESS;
+    return MATRIX_SUCCESS;
+}
+
+int _outer_parallel(Matrix* target, const Vector* a, const Vector* b)
+{
+#pragma omp parallel for // parallel outer basically always faster
+    for (size_t m = 0; m < a->dim; m++)
+    {
+        for (size_t n = 0; n < b->dim; n++)
+        {
+
+            double value                      = a->values[m] * b->values[n];
+            target->values[m * target->n + n] = value;
+        }
+    }
+
+    return MATRIX_SUCCESS;
+}
+
+int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b)
+{
+    Matrix_prepare_target(target, a->dim, b->dim);
+    if (a->dim * b->dim > 200 * 200)
+    {
+        return _outer_parallel(target, a, b);
+    }
+    return _outer_scalar(target, a, b);
+}
+
+int _outer_square_scalar(Matrix* target, const Vector* v, const size_t N)
+{
+    for (size_t m = 0; m < N; m++)
+    {
+#pragma omp simd
+        for (size_t n = m; n < N; n++)
+        {
+            double value                      = v->values[m] * v->values[n];
+            target->values[m * target->n + n] = value;
+            target->values[n * target->n + m] = value;
+        }
+    }
+    return MATRIX_SUCCESS;
+}
+
+// deprecated, gets outperformed by naiive outer product
+int Matrix_Vector_outer_square(Matrix* target, const Vector* v)
+{
+    if (v->dim > 0)
+    {
+        return Matrix_Vector_outer(target, v, v);
+    }
+
+    Matrix_prepare_target(target, v->dim, v->dim);
+    return _outer_square_scalar(target, v, v->dim);
 }
 
 int Matrix_Hessenberg(Matrix* H, const Matrix* A)
@@ -1189,48 +1336,72 @@ int Matrix_Hessenberg(Matrix* H, const Matrix* A)
     }
 
     Matrix_copy(H, A);
+    double* restrict H_values = H->values;
 
     for (size_t k = 0; k < m - 2; k++)
     {
         size_t rows = m - (k + 1);
 
-        Vector x = Vector_zeros(rows);
+        Vector x;
+        x.values = NULL;
+        // x.values = malloc(rows * sizeof(double));
+        posix_memalign((void**)&x.values, 32, rows * sizeof(double));
+        x.dim        = rows;
+        double normx = 0.0;
+
         for (size_t i = 0; i < rows; i++)
         {
-            x.values[i] = H->values[(k + 1 + i) * n + k];
+            double val  = H_values[(k + 1 + i) * n + k];
+            x.values[i] = val;
+            normx += val * val;
         }
-        double normx = Vector_norm(&x);
         if (normx == 0.0)
         {
             Vector_free(&x);
             continue;
         }
+        normx = sqrt(normx);
 
         double sign = (x.values[0] >= 0.0) ? 1.0 : -1.0;
 
         Vector e1    = Vector_zeros(rows);
         e1.values[0] = 1.0;
 
-        Vector v = Vector_zeros_like(&x);
+        Vector v;
+        // v.values = malloc(x.dim * sizeof(double));
+        v.values = NULL;
+        posix_memalign((void**)&v.values, 32, x.dim * sizeof(double));
+        v.dim = x.dim;
         Vector_copy(&v, &x);
         Vector_scale(&e1, sign * normx);
         Vector_add(&v, &e1);
         Vector_free(&e1);
 
-        double vnorm = Vector_norm(&v);
-        Vector_scale(&v, 1.0 / vnorm);
+        double vnorm = 0.0;
+
+        for (size_t i = 0; i < v.dim; i++)
+        {
+            vnorm += v.values[i] * v.values[i];
+        }
+        vnorm = sqrt(vnorm);
+
+        // Vector_scale(&v, 1.0 / vnorm);
+        for (size_t i = 0; i < v.dim; i++)
+        {
+            v.values[i] /= vnorm;
+        }
 
         for (size_t j = k; j < n; j++)
         {
             double dot = 0.0;
             for (size_t i = 0; i < rows; i++)
             {
-                dot += v.values[i] * H->values[(k + 1 + i) * n + j];
+                dot += v.values[i] * H_values[(k + 1 + i) * n + j];
             }
 
             for (size_t i = 0; i < rows; i++)
             {
-                H->values[(k + 1 + i) * n + j] -= 2.0 * v.values[i] * dot;
+                H_values[(k + 1 + i) * n + j] -= 2.0 * v.values[i] * dot;
             }
         }
 
@@ -1239,11 +1410,11 @@ int Matrix_Hessenberg(Matrix* H, const Matrix* A)
             double dot = 0.0;
             for (size_t r = 0; r < rows; r++)
             {
-                dot += H->values[i * n + (k + 1 + r)] * v.values[r];
+                dot += H_values[i * n + (k + 1 + r)] * v.values[r];
             }
             for (size_t r = 0; r < rows; r++)
             {
-                H->values[i * n + (k + 1 + r)] -= 2.0 * dot * v.values[r];
+                H_values[i * n + (k + 1 + r)] -= 2.0 * dot * v.values[r];
             }
         }
         Vector_free(&v);
@@ -1251,19 +1422,13 @@ int Matrix_Hessenberg(Matrix* H, const Matrix* A)
     }
     return MATRIX_SUCCESS;
 }
-
 void Matrix_QR_hessenberg(Matrix* Q, Matrix* R, Matrix* H, size_t active)
 {
     size_t n = H->n;
-
-    // Initialize Q = I
     for (size_t i = 0; i < n; i++)
         for (size_t j = 0; j < n; j++)
             Q->values[i * n + j] = (i == j ? 1.0 : 0.0);
-
-    // Copy H into R (we will transform R into upper triangular)
     Matrix_copy(R, H);
-
     for (size_t i = 0; i < active - 1; i++)
     {
         double a = R->values[i * n + i];
@@ -1304,7 +1469,12 @@ void Matrix_Matrix_dot_active(Matrix* H,
 {
     size_t n = H->n;
 
-    Matrix tmp = Matrix_zeros_like(H);
+    Matrix tmp;
+    // tmp.values = malloc(H->m * H->n * sizeof(double));
+    tmp.values = NULL;
+    posix_memalign((void**)&tmp.values, 32, H->m * H->n * sizeof(double));
+    tmp.m = H->m;
+    tmp.n = H->n;
 
     for (size_t i = 0; i < active; i++)
     {
@@ -1320,6 +1490,7 @@ void Matrix_Matrix_dot_active(Matrix* H,
 
     // Copy back only active block
     for (size_t i = 0; i < active; i++)
+#pragma omp simd
         for (size_t j = 0; j < active; j++)
             H->values[i * n + j] = tmp.values[i * n + j];
 
