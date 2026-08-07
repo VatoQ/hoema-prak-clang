@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200112L
 #include "../include/vector.h"
 #include "../include/logging.h"
 #include "../include/prng.h"
@@ -178,11 +179,16 @@ Vector Vector_zeros(const size_t dim)
     Vector res = { 0 };
     if (dim > 0)
     {
-        res.values = calloc(dim, sizeof(double));
-        if (!res.values)
+        res.values = NULL;
+        if (posix_memalign((void**)&res.values, 32, dim * sizeof(double)) != 0)
         {
             Log_log("Error allocating data for Vector_zeros()", LOG_RT_ERROR);
             return (Vector){ 0 };
+        }
+#pragma omp simd
+        for (size_t i = 0; i < dim; i++)
+        {
+            res.values[i] = 0.0;
         }
         res.dim = dim;
     }
