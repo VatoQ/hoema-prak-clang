@@ -1019,6 +1019,85 @@ int Matrix_QR(Matrix* Q, Matrix* R, const Matrix* A)
     return MATRIX_SUCCESS;
 }
 
+void _Matrix_Matrix_dot_active_raw(double* restrict H_values,
+                                   const double* restrict R_values,
+                                   const double* restrict Q_values,
+                                   const size_t active,
+                                   const size_t m,
+                                   const size_t n)
+{
+    double* tmp_values = NULL;
+    posix_memalign((void**)&tmp_values, 32, m * n * sizeof(double));
+
+    for (size_t i = 0; i < active; i++)
+    {
+#pragma omp simd aligned(R_values, Q_values : 32)
+        for (size_t j = 0; j < active; j++)
+        {
+            double sum = 0.0;
+            for (size_t k = 0; k < active; k++)
+                sum += R_values[i * n + k] * Q_values[k * n + j];
+
+            tmp_values[i * n + j] = sum;
+        }
+    }
+
+    // Copy back only active block
+#pragma omp simd aligned(H_values, tmp_values : 32)
+    for (size_t i = 0; i < active; i++)
+        for (size_t j = 0; j < active; j++)
+            H_values[i * n + j] = tmp_values[i * n + j];
+
+    free(tmp_values);
+}
+
+void _Matrix_QR_hessenberg_raw(double* restrict Q_values,
+                               double* restrict R_values,
+                               double* restrict H_values,
+                               size_t active,
+                               const size_t n)
+{
+    for (size_t i = 0; i < n; i++)
+    {
+        for (size_t j = 0; j < n; j++)
+        {
+            Q_values[i * n + j] = (i == j ? 1.0 : 0.0);
+        }
+    }
+    memcpy(R_values, H_values, n * n * sizeof(double));
+    for (size_t i = 0; i < active - 1; i++)
+    {
+        double a = R_values[i * n + i];
+        double b = R_values[(i + 1) * n + i];
+
+        if (fabs(b) < 1e-15)
+        {
+            continue;
+        }
+
+        double r = hypot(a, b);
+        double c = a / r;
+        double s = -b / r;
+#pragma omp simd aligned(R_values : 32)
+        for (size_t j = i; j < active; j++)
+        {
+            double t1                 = R_values[i * n + j];
+            double t2                 = R_values[(i + 1) * n + j];
+            R_values[i * n + j]       = c * t1 - s * t2;
+            R_values[(i + 1) * n + j] = s * t1 + c * t2;
+        }
+
+#pragma omp simd aligned(Q_values : 32)
+        for (size_t j = 0; j < active; j++)
+        {
+            double t1                 = Q_values[j * n + i];
+            double t2                 = Q_values[j * n + (i + 1)];
+            Q_values[j * n + i]       = c * t1 - s * t2;
+            Q_values[j * n + (i + 1)] = s * t1 + c * t2;
+        }
+    }
+}
+
 int _eigvals_two(Vector* eigenvalues, const Matrix* M)
 {
     const double a = M->values[0];
@@ -1089,7 +1168,10 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
     size_t n      = H.n;
     size_t active = n;
 
-    size_t total_iters = 0;
+    size_t total_iters        = 0;
+    double* restrict H_values = H.values;
+    double* restrict Q_values = Q.values;
+    double* restrict R_values = R.values;
 
     while (active > 1)
     {
@@ -1108,10 +1190,15 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
 #pragma omp simd
             for (size_t i = 0; i < active; i++)
             {
-                H.values[i * n + i] -= mu;
+                // H.values[i * n + i] -= mu;
+                H_values[i * n + i] -= mu;
             }
-            Matrix_QR_hessenberg(&Q, &R, &H, active);
-            Matrix_Matrix_dot_active(&H, &R, &Q, active);
+            // Matrix_QR_hessenberg(&Q, &R, &H, active);
+            _Matrix_QR_hessenberg_raw(
+              Q_values, R_values, H_values, active, Q.n);
+            // Matrix_Matrix_dot_active(&H, &R, &Q, active);
+            _Matrix_Matrix_dot_active_raw(
+              H_values, R_values, Q_values, active, H.m, H.n);
 
 #pragma omp simd
             for (size_t i = 0; i < active; i++)
@@ -1335,19 +1422,13 @@ int Matrix_Hessenberg(Matrix* H, const Matrix* A)
     }
     return MATRIX_SUCCESS;
 }
-
 void Matrix_QR_hessenberg(Matrix* Q, Matrix* R, Matrix* H, size_t active)
 {
     size_t n = H->n;
-
-    // Initialize Q = I
     for (size_t i = 0; i < n; i++)
         for (size_t j = 0; j < n; j++)
             Q->values[i * n + j] = (i == j ? 1.0 : 0.0);
-
-    // Copy H into R (we will transform R into upper triangular)
     Matrix_copy(R, H);
-
     for (size_t i = 0; i < active - 1; i++)
     {
         double a = R->values[i * n + i];
