@@ -276,7 +276,7 @@ void test_vector_gradient_minimize(void)
 
 void test_vector_sort(void)
 {
-    const size_t N = 2000;
+    const size_t N = 1000000;
     Vector v       = Vector_new_random_uniform(N, 0, 1);
     Vector_sort_inplace(&v);
 

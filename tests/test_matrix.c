@@ -130,12 +130,13 @@ void test_matrix_inverse(void)
     Matrix_free(&M);
     Matrix_free(&M_inv);
 
-    M        = Matrix_new_random_symmetric(20);
-    M_inv    = Matrix_zeros_like(&M);
-    Matrix B = Matrix_zeros_like(&M);
-    Vector v = Vector_ones(20);
-    Matrix I = Matrix_diag(&v);
-    status   = Matrix_inverse(&M_inv, &M);
+    const size_t N = 100;
+    M              = Matrix_new_random_symmetric(N);
+    M_inv          = Matrix_zeros_like(&M);
+    Matrix B       = Matrix_zeros_like(&M);
+    Vector v       = Vector_ones(N);
+    Matrix I       = Matrix_diag(&v);
+    status         = Matrix_inverse(&M_inv, &M);
 
     TEST_CHECK(status == MATRIX_SUCCESS);
     Matrix_Matrix_dot(&B, &M, &M_inv);
@@ -405,7 +406,6 @@ void test_matrix_outer(void)
     Vector_free(&v2);
     Matrix_free(&M);
 }
-
 TEST_LIST = { { "matrix_create", test_matrix_create },
               { "test_matrix_symmetric", test_matrix_symmetric },
               { "matrix_add", test_matrix_add },
