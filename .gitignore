@@ -1,3 +1,5 @@
 *.o
 !test/test_*.c
 bin
+.opt_details.txt
+opt_report.txt
