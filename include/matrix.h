@@ -40,6 +40,7 @@
 ////////////////////////////////
 
 #include "config.h"
+#include <complex.h>
 #include <stdbool.h>
 #define MATRIX_EPS 1e-4
 
@@ -68,11 +69,14 @@ typedef enum
  * - `m` Rows of the matrix.
  *
  * - `n` Columns of the matrix.
+ *
+ * - `dt` Datatype of the Matrix
  */
 typedef struct
 {
-    double* values;
+    void* values;
     size_t m, n;
+    DataType dt;
 } Matrix;
 
 ///////////////////////////////////
@@ -81,40 +85,24 @@ typedef struct
 //~- ------------------------- -~//
 ///////////////////////////////////
 
-/**
- * @brief Construct a new matrix in \[ℝ^{m \times n}\]
- *
- * @param `m` number of rows.
- * @param `n` Number of columns.
- * @param `init_val` Initial value.
- * @return Matrix with the shape { `init_val` (`m` * `n` times) }
- */
-Matrix Matrix_new(const size_t m, const size_t n, const double init_val);
-/**
- * @brief Construct a new matrix in \[ℝ^{m \times n}\]
- *
- * @param `m` number of rows.
- * @param `n` Number of columns.
- * @param `init_vals` Array of initial values.
- * @return Matrix with the shape { `init_vals[0]` ... `init_vals[m * n - 1]`  }
- */
-Matrix Matrix_new_vals(const size_t m, const size_t n, const double* init_vals);
+Matrix Matrix_new(const size_t m, const size_t n, DataType dt);
+
+Matrix Matrix_like(const Matrix* M);
+
+Matrix Matrix_zeros(const size_t m, const size_t n, DataType dt);
+
+Matrix Matrix_new_vals(const size_t m,
+                       const size_t n,
+                       const void* init_vals,
+                       DataType dt);
 
 void Matrix_init_prng(const int seed);
 
-/**
- * @brief Construct a new Matrix with normally distributed initial values.
- *
- * @param `m` Rows of the new matrix.
- * @param `n` Columns of the new matrix.
- * @param `mean` Mean of the distribution.
- * @param `variance` Variance of the distribution.
- * @return Matrix with the shape { \[N(mean, variance)\] (`m * n` times)}
- */
 Matrix Matrix_new_random_normal(const size_t m,
                                 const size_t n,
                                 const double mean,
-                                const double variance);
+                                const double variance,
+                                DataType dt);
 
 /**
  * @brief Construct a new matrix with uniformly distributed values.
@@ -128,17 +116,12 @@ Matrix Matrix_new_random_normal(const size_t m,
 Matrix Matrix_new_random_uniform(const size_t m,
                                  const size_t n,
                                  const double min,
-                                 const double max);
+                                 const double max,
+                                 DataType dt);
 
-Matrix Matrix_new_random_symmetric(const size_t n);
+Matrix Matrix_new_random_symmetric(const size_t n, DataType dt);
 
-/**
- * @brief Construct a Matrix with the shape of `M` filled with zeros.
- *
- * @param `M` Matrix to imitate.
- * @return New Matrix with the shape { 0.0, (`M->m` * `M->n` times) }
- */
-Matrix Matrix_zeros_like(const Matrix* M);
+Matrix Matrix_zeros_like(const Matrix* M, DataType dt);
 /**
  * @brief Construct a diagonal matrix with the values of `v`.
  *
@@ -146,13 +129,8 @@ Matrix Matrix_zeros_like(const Matrix* M);
  * @return New Matrix with the values of `v` along the diagonal.
  */
 Matrix Matrix_diag(const Vector* v);
-/**
- * @brief Construct a diagonal matrix.
- *
- * @param `n` Number of columns and rows: A diagonal matrix is symmetrical.
- * @return New Matrix with the shape nxn with `val` along the diagonal.
- */
-Matrix Matrix_diag_val(const size_t n, const double val);
+
+Matrix Matrix_diag_val(const size_t n, const void* val, const DataType dt);
 /**
  * @brief Copy `M` into `target`.
  *
@@ -170,10 +148,7 @@ void Matrix_copy(Matrix* target, const Matrix* M);
  * @param `value` Value to be set to `M`.
  * @return `MATRIX_DIMENSION_ERROR` or `MATRIX_BASIC_SUCCESS`
  */
-int Matrix_set_at(Matrix* M,
-                  const size_t m,
-                  const size_t n,
-                  const double value);
+int Matrix_set_at(Matrix* M, const size_t m, const size_t n, const void* value);
 /**
  * @brief Get a value of `M` at a given position.
  *
@@ -183,7 +158,7 @@ int Matrix_set_at(Matrix* M,
  * @param `n` Column at which to get `value`
  * @return `MATRIX_DIMENSION_ERROR` or `MATRIX_BASIC_SUCCESS`
  */
-int Matrix_get_at(double* target,
+int Matrix_get_at(void* target,
                   const Matrix* M,
                   const size_t m,
                   const size_t n);
@@ -202,9 +177,9 @@ void Matrix_free(Matrix* M);
  */
 void Matrix_print(const Matrix* M);
 
-double Matrix_max(const Matrix* M);
+void Matrix_max(void* target, const Matrix* M);
 
-double Matrix_min(const Matrix* M);
+void Matrix_min(void* target, const Matrix* M);
 
 ///////////////////////////////////
 //~- ------------------------- -~//
@@ -212,19 +187,12 @@ double Matrix_min(const Matrix* M);
 //~- ------------------------- -~//
 ///////////////////////////////////
 
-/**
- * @brief Prepares `target` for further processing. A `target` with matching
- * dimension will remain unchanged.
- *
- * @param `target` Target container for matrix operations.
- * @param `m` Rows of target matrix.
- * @param `n` Columns of target matrix.
- */
 static void Matrix_prepare_target(Matrix* target,
                                   const size_t m,
-                                  const size_t n);
+                                  const size_t n,
+                                  DataType dt);
 
-double Matrix_norm(const Matrix* M, NormType nt);
+void Matrix_norm(void* target, const Matrix* M, NormType nt);
 
 /**
  * @brief Add `M` to `target`. Equivalent to `target += M`.
@@ -248,7 +216,7 @@ int Matrix_sub(Matrix* target, const Matrix* M);
  * @param `target` Matrix to be scaled.
  * @param `lambda` Real scalar.
  */
-void Matrix_scale(Matrix* target, const double lambda);
+void Matrix_scale(Matrix* target, const complex double lambda);
 /**
  * @brief Invert a matrix if it is invertable.
  *
@@ -374,6 +342,10 @@ void Matrix_Matrix_dot_active(Matrix* H,
                               const Matrix* R,
                               const Matrix* Q,
                               size_t active);
+
+int Matrix_inner_dot(double* target, const Matrix* A, const Matrix* B);
+
+int Matrix_Hadamard_dot(Matrix* target, const Matrix* A, const Matrix* B);
 
 // void Matrix_Vector_dot_batch(Vector** target,
 //                              const Matrix* M,
