@@ -3,6 +3,9 @@
 #include "../include/logging.h"
 #include "../include/prng.h"
 #include "../include/vector.h"
+#include <complex.h>
+#include <iso646.h>
+#include <limits.h>
 #include <math.h>
 #include <omp.h>
 #include <stdbool.h>
@@ -10,6 +13,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define INITIALIZER(n, vals_arr, val_ptr)                                      \
+    for (size_t i = 0; i < n; i++)                                             \
+    vals_arr[i] = *val_ptr
 
 static PRNG_State prng = { 0 };
 
@@ -20,74 +27,106 @@ int Matrix_is_empty(const Matrix* M)
 
 static void Matrix_prepare_target(Matrix* target,
                                   const size_t m,
-                                  const size_t n)
+                                  const size_t n,
+                                  DataType dt)
 {
     if (Matrix_is_empty(target))
     {
-        *target = Matrix_new(m, n, 0.0);
+        *target = Matrix_new(m, n, dt);
         return;
     }
 
-    if (target->m == m && target->n == n)
+    if (target->m == m && target->n == n && target->dt == dt)
     {
         return;
     }
     Log_log("Target matrix shape mismatch, reallocating", LOG_RT_WARNING);
     Matrix_free(target);
-    *target = Matrix_new(m, n, 0.0);
+    *target = Matrix_new(m, n, dt);
 }
 
-Matrix Matrix_new(const size_t m, const size_t n, const double init_val)
+size_t _elem_size(DataType dt)
 {
-    Matrix res = { 0 };
+    switch (dt)
+    {
+        case Int:
+        {
+            return sizeof(long);
+        }
+        case Real:
+        {
+            return sizeof(double);
+        }
+        case Complex:
+        {
+            return sizeof(complex double);
+        }
+        default:
+        {
+            return 1;
+        }
+    }
+}
+
+Matrix Matrix_new(const size_t m, const size_t n, DataType dt)
+{
+    Matrix res           = { 0 };
+    const size_t dt_size = _elem_size(dt);
     if (m != 0 && n != 0)
     {
         if (Log_get_verbosity() == LOG_VERB_ALL &&
-            Log_info_threshold(m * n, sizeof(double)))
+            Log_info_threshold(m * n, dt_size))
         {
             char buf[128];
             double mibi_byte_size =
-              1.0 * n * n * sizeof(double) / (double)(1024 * 1024);
+              1.0 * n * n * dt_size / (double)(1024 * 1024);
             snprintf(buf,
                      128,
-                     "Allocated a new matrix of shape (%zu, %zu), %.2f MiB "
-                     "with initial "
-                     "value %f",
+                     "Allocated a new matrix of shape (%zu, %zu), %.2f MiB ",
                      m,
                      n,
-                     mibi_byte_size,
-                     init_val);
+                     mibi_byte_size);
             Log_log(buf, LOG_RT_INFO);
         }
 
-        double* vals = NULL;
-        if (posix_memalign((void**)&vals, 32, m * n * sizeof(double)) != 0)
+        void* vals = NULL;
+        if (posix_memalign((void**)&vals, 32, m * n * dt_size) != 0)
         {
             Log_log("Error allocating memory in Matrix_new()", LOG_RT_ERROR);
             return (Matrix){ 0 };
         }
-        if (fabs(init_val) > EPS)
-        {
 
-#pragma omp simd aligned(vals : 32)
-            for (size_t i = 0; i < m * n; i++)
-            {
-                vals[i] = init_val;
-            }
-        }
         res.m      = m;
         res.n      = n;
         res.values = vals;
+        res.dt     = dt;
     }
     return res;
 }
 
-Matrix Matrix_new_vals(const size_t m, const size_t n, const double* init_vals)
+Matrix Matrix_like(const Matrix* M)
 {
-    Matrix M = Matrix_new(m, n, 0);
-    memcpy(M.values, init_vals, m * n * sizeof(double));
-    M.m = m;
-    M.n = n;
+    Matrix new = Matrix_new(M->m, M->n, M->dt);
+    return new;
+}
+
+Matrix Matrix_zeros(const size_t m, const size_t n, DataType dt)
+{
+    Matrix M = Matrix_new(m, n, dt);
+    memset(M.values, 0, m * n * _elem_size(dt));
+    return M;
+}
+
+Matrix Matrix_new_vals(const size_t m,
+                       const size_t n,
+                       const void* init_vals,
+                       DataType dt)
+{
+    Matrix M = Matrix_new(m, n, dt);
+    memcpy(M.values, init_vals, m * n * _elem_size(dt));
+    M.m  = m;
+    M.n  = n;
+    M.dt = dt;
     return M;
 }
 
@@ -106,10 +145,65 @@ void Matrix_init_prng(const int seed)
     }
 }
 
+static void _set_normal_int(void* values,
+                            size_t size,
+                            PRNG_State* prng,
+                            double mean,
+                            double variance)
+{
+    for (size_t i = 0; i < size; i++)
+    {
+        void* ptr = values + i;
+        long* val = (long*)ptr;
+        *val      = (long)PRNG_State_normal(prng, mean, variance);
+    }
+}
+
+static void _set_normal_real(void* values,
+                             size_t size,
+                             PRNG_State* prng,
+                             double mean,
+                             double variance)
+{
+    for (size_t i = 0; i < size; i++)
+    {
+        void* ptr   = values + i;
+        double* val = (double*)ptr;
+        *val        = (double)PRNG_State_normal(prng, mean, variance);
+    }
+}
+
+static void _set_normal_compl(void* values,
+                              size_t size,
+                              PRNG_State* prng,
+                              double mean,
+                              double variance)
+{
+    for (size_t i = 0; i < size; i++)
+    {
+        void* ptr           = values + i;
+        complex double* val = (complex double*)ptr;
+        double a            = PRNG_State_normal(prng, mean, variance);
+        double b            = PRNG_State_normal(prng, mean, variance);
+        *val                = a + b * I;
+    }
+}
+
+static void (*_normal_setters[TYPE_COUNT])(void* values,
+                                           size_t size,
+                                           PRNG_State* prng,
+                                           double mean,
+                                           double variance) = {
+    [Int]     = _set_normal_int,
+    [Real]    = _set_normal_real,
+    [Complex] = _set_normal_compl
+};
+
 Matrix Matrix_new_random_normal(const size_t m,
                                 const size_t n,
                                 const double mean,
-                                const double variance)
+                                const double variance,
+                                DataType dt)
 {
 
     Matrix_init_prng(NO_SEED);
@@ -129,18 +223,70 @@ Matrix Matrix_new_random_normal(const size_t m,
         Log_log(buf, LOG_RT_INFO);
     }
 
-    Matrix M = Matrix_new(m, n, 0.0);
-    for (size_t i = 0; i < m * n; i++)
-    {
-        M.values[i] = PRNG_State_normal(&prng, mean, variance);
-    }
+    Matrix M = Matrix_new(m, n, dt);
+    _normal_setters[dt](M.values, m * n, &prng, mean, variance);
     return M;
 }
+
+static void _set_uniform_int(void* values,
+                             size_t size,
+                             PRNG_State* prng,
+                             double min,
+                             double max)
+{
+    for (size_t i = 0; i < size; i++)
+    {
+        void* ptr = values + i;
+        long* val = (long*)ptr;
+        *val      = (long)PRNG_State_random_double_range(prng, min, max);
+    }
+}
+
+static void _set_uniform_real(void* values,
+                              size_t size,
+                              PRNG_State* prng,
+                              double min,
+                              double max)
+{
+    for (size_t i = 0; i < size; i++)
+    {
+        void* ptr   = values + i;
+        double* val = (double*)ptr;
+        *val        = (double)PRNG_State_random_double_range(prng, min, max);
+    }
+}
+
+static void _set_uniform_compl(void* values,
+                               size_t size,
+                               PRNG_State* prng,
+                               double min,
+                               double max)
+{
+    for (size_t i = 0; i < size; i++)
+    {
+        void* ptr           = values + i;
+        complex double* val = (complex double*)ptr;
+        double a            = PRNG_State_random_double_range(prng, min, max);
+        double b            = PRNG_State_random_double_range(prng, min, max);
+        *val                = a + b * I;
+    }
+}
+
+static void (*_uniform_setters[TYPE_COUNT])(void* values,
+                                            size_t size,
+                                            PRNG_State* prng,
+                                            double mean,
+                                            double variance) = {
+    [Int]     = _set_normal_int,
+    [Real]    = _set_normal_real,
+    [Complex] = _set_normal_compl
+};
 
 Matrix Matrix_new_random_uniform(const size_t m,
                                  const size_t n,
                                  const double min,
-                                 const double max)
+                                 const double max,
+                                 DataType dt)
 {
     Matrix_init_prng(NO_SEED);
 
@@ -160,17 +306,16 @@ Matrix Matrix_new_random_uniform(const size_t m,
         Log_log(buf, LOG_RT_INFO);
     }
     Matrix M = Matrix_new(m, n, 0);
-    for (size_t i = 0; i < m * n; i++)
-    {
-        M.values[i] = PRNG_State_random_double_range(&prng, min, max);
-    }
+    _uniform_setters[dt](M.values, m * n, &prng, min, max);
     return M;
 }
 
-Matrix Matrix_new_random_symmetric(const size_t n)
+Matrix Matrix_new_random_symmetric(const size_t n, DataType dt)
 {
-    Matrix M   = Matrix_new(n, n, 0);
-    Matrix tmp = Matrix_zeros_like(&M);
+    // TODO: Vector datatypes
+    Matrix M = Matrix_zeros(n, n, dt);
+    memset(M.values, 0, n * n * _elem_size(dt));
+    Matrix tmp = Matrix_zeros_like(&M, dt);
 
     Vector v = Vector_zeros(0);
 
@@ -185,11 +330,11 @@ Matrix Matrix_new_random_symmetric(const size_t n)
         Vector_free(&v);
     }
     if (Log_get_verbosity() == LOG_VERB_ALL &&
-        Log_info_threshold(n * n, sizeof(double)))
+        Log_info_threshold(n * n, _elem_size(dt)))
     {
         char buf[128];
         double mibi_byte_size =
-          1.0 * n * n * sizeof(double) / (double)(1024 * 1024);
+          1.0 * n * n * _elem_size(dt) / (double)(1024 * 1024);
         snprintf(buf,
                  128,
                  "New random symmetric matrix constructed with shape (%zu, "
@@ -202,10 +347,90 @@ Matrix Matrix_new_random_symmetric(const size_t n)
     return M;
 }
 
-Matrix Matrix_zeros_like(const Matrix* M)
+static void _zero_init_int(void* values, const size_t size)
 {
-    return Matrix_new(M->m, M->n, 0);
+    for (size_t i = 0; i < size; i++)
+    {
+        void* ptr = values + i;
+        long* val = (long*)val;
+        *val      = 0;
+    }
 }
+
+static void _zero_init_real(void* values, const size_t size)
+{
+    for (size_t i = 0; i < size; i++)
+    {
+        void* ptr   = values + i;
+        double* val = (double*)val;
+        *val        = 0;
+    }
+}
+
+static void _zero_init_complex(void* values, const size_t size)
+{
+    for (size_t i = 0; i < size; i++)
+    {
+        void* ptr           = values + i;
+        complex double* val = (complex double*)val;
+        *val                = 0;
+    }
+}
+
+static void (*_zero_initializers[TYPE_COUNT])(void* values,
+                                              const size_t size) = {
+    [Int]     = _zero_init_int,
+    [Real]    = _zero_init_real,
+    [Complex] = _zero_init_complex
+};
+
+Matrix Matrix_zeros_like(const Matrix* M, DataType dt)
+{
+    Matrix new = Matrix_like(M);
+    memset(M->values, 0, M->m * M->n * _elem_size(dt));
+
+    // _zero_initializers[dt](new.values, M->m * M->n);
+    return new;
+}
+
+void _diag_int(void* M_values, const size_t n, const void* vals)
+{
+    for (size_t i = 0; i < n; i++)
+    {
+        long* ptr = (long*)M_values + i * n + i;
+        long* val = (long*)vals + i;
+        *ptr      = *val;
+    }
+}
+
+void _diag_real(void* M_values, const size_t n, const void* vals)
+{
+    for (size_t i = 0; i < n; i++)
+    {
+        printf("s%zu\n", i);
+        double* ptr = (double*)M_values + i * n + i;
+        double* val = (double*)vals + i;
+        *ptr        = *val;
+    }
+}
+
+void _diag_cmpl(void* M_values, const size_t n, const void* vals)
+{
+    for (size_t i = 0; i < n; i++)
+    {
+        complex double* ptr = (complex double*)M_values + i * n + i;
+        complex double* val = (complex double*)vals + i;
+        *ptr                = *val;
+    }
+}
+
+void (*_diag_helper_workers[TYPE_COUNT])(void* M_values,
+                                         const size_t n,
+                                         const void* vals) = {
+    [Int]     = _diag_int,
+    [Real]    = _diag_real,
+    [Complex] = _diag_cmpl
+};
 
 /**
  * @brief Set a given array of values to the diagonal entries of a matrix.
@@ -214,19 +439,19 @@ Matrix Matrix_zeros_like(const Matrix* M)
  * @param `n` number of values in `val`.
  * @param `val` array of initial values.
  */
-static void _diag_helper(Matrix* M, const size_t n, const double* val)
+static void _diag_helper(Matrix* M,
+                         const size_t n,
+                         const double* val,
+                         DataType dt)
 {
     int status = 0;
-    for (size_t i = 0; i < n; i++)
-    {
-        M->values[i * M->n + i] = val[i];
-    }
+    _diag_helper_workers[dt](M->values, n, val);
     if (status != MATRIX_SUCCESS * n)
     {
         Log_log("An unknown error has occured at "
                 "Matrix_diag()\nReplacing M with zeros",
                 LOG_RT_ERROR);
-        Matrix tmp = Matrix_zeros_like(M);
+        Matrix tmp = Matrix_zeros_like(M, dt);
         Matrix_free(M);
         *M = tmp;
     }
@@ -236,8 +461,8 @@ Matrix Matrix_diag(const Vector* v)
 {
     const size_t n = v->dim;
 
-    Matrix M = Matrix_new(n, n, 0.0);
-    _diag_helper(&M, n, v->values);
+    Matrix M = Matrix_zeros(n, n, v->dt);
+    _diag_helper(&M, n, v->values, v->dt);
     if (Log_get_verbosity() == LOG_VERB_ALL &&
         Log_info_threshold(n * n, sizeof(double)))
     {
@@ -246,28 +471,127 @@ Matrix Matrix_diag(const Vector* v)
     return M;
 }
 
-Matrix Matrix_diag_val(const size_t n, const double val)
+void _diag_int_c(void* M_values, const size_t n, const void* vals)
 {
-    Matrix M     = Matrix_new(n, n, 0.0);
-    double* vals = calloc(n, sizeof(double));
     for (size_t i = 0; i < n; i++)
     {
-        vals[i] = val;
+        long* target_val = (long*)M_values + i * n + i;
+        long* sourve_val = (long*)vals + i;
+        *target_val      = *sourve_val;
     }
-    _diag_helper(&M, n, vals);
+}
+
+void _diag_real_c(void* M_values, const size_t n, const void* vals)
+{
+    for (size_t i = 0; i < n; i++)
+    {
+        double* target_val = (double*)M_values + i * n + i;
+        double* sourve_val = (double*)vals + i;
+        *target_val        = *sourve_val;
+    }
+}
+
+void _diag_cmpl_c(void* M_values, const size_t n, const void* vals)
+{
+    for (size_t i = 0; i < n; i++)
+    {
+        complex double* target_val = (complex double*)M_values + i * n + i;
+        complex double* sourve_val = (complex double*)vals + i;
+        *target_val                = *sourve_val;
+    }
+}
+
+void (*_diag_helper_workers_c[TYPE_COUNT])(void* M_values,
+                                           const size_t n,
+                                           const void* vals) = {
+    [Int]     = _diag_int_c,
+    [Real]    = _diag_real_c,
+    [Complex] = _diag_cmpl_c
+};
+
+void _init_vals_int(const size_t n, void* vals, const void* val)
+{
+    long* vals_i = (long*)vals;
+    long* val_i  = (long*)val;
+    INITIALIZER(n, vals_i, val_i);
+}
+
+void _init_vals_real(const size_t n, void* vals, const void* val)
+{
+    double* vals_r = (double*)vals;
+    double* val_r  = (double*)val;
+    INITIALIZER(n, vals_r, val_r);
+}
+
+void _init_vals_cmpl(const size_t n, void* vals, const void* val)
+{
+
+    complex double* vals_c = (complex double*)vals;
+    complex double* val_c  = (complex double*)val;
+    INITIALIZER(n, vals_c, val_c);
+}
+
+void (*_init_vals_units[TYPE_COUNT])(const size_t n,
+                                     void* vals,
+                                     const void* val) = {
+    [Int]     = _init_vals_int,
+    [Real]    = _init_vals_real,
+    [Complex] = _init_vals_cmpl,
+};
+
+Matrix Matrix_diag_val(const size_t n, const void* val, const DataType dt)
+{
+    Matrix M   = Matrix_zeros(n, n, dt);
+    void* vals = calloc(n, _elem_size(dt));
+    _init_vals_units[dt](n, vals, val);
+    _diag_helper_workers_c[dt](M.values, n, vals);
     free(vals);
     return M;
 }
 
 void Matrix_copy(Matrix* target, const Matrix* M)
 {
-    Matrix_prepare_target(target, M->m, M->n);
-    memcpy(target->values, M->values, M->m * M->n * sizeof(double));
-    target->m = M->m;
-    target->n = M->n;
+    Matrix_prepare_target(target, M->m, M->n, M->dt);
+    memcpy(target->values, M->values, M->m * M->n * _elem_size(M->dt));
+    target->m  = M->m;
+    target->n  = M->n;
+    target->dt = M->dt;
 }
 
-int Matrix_set_at(Matrix* M, const size_t m, const size_t n, const double value)
+static void _set_at_int(void* M_values, const size_t index, const void* value)
+{
+    long* v      = (long*)value;
+    void* ptr    = M_values + index;
+    long* target = (long*)ptr;
+    *target      = *v;
+}
+
+static void _set_at_real(void* M_values, const size_t index, const void* value)
+{
+
+    double* v      = (double*)value;
+    void* ptr      = M_values + index;
+    double* target = (double*)ptr;
+    *target        = *v;
+}
+
+static void _set_at_cmpl(void* M_values, const size_t index, const void* value)
+{
+    complex double* v      = (complex double*)value;
+    void* ptr              = M_values + index;
+    complex double* target = (complex double*)ptr;
+    *target                = *v;
+}
+
+void (*_set_at_helpers[TYPE_COUNT])(void* M_values,
+                                    const size_t index,
+                                    const void* value) = {
+    [Int]     = _set_at_int,
+    [Real]    = _set_at_real,
+    [Complex] = _set_at_cmpl,
+};
+
+int Matrix_set_at(Matrix* M, const size_t m, const size_t n, const void* value)
 {
     if (m >= M->m || n >= M->n)
     {
@@ -275,15 +599,46 @@ int Matrix_set_at(Matrix* M, const size_t m, const size_t n, const double value)
         return MATRIX_DIMENSION_ERROR;
     }
     const size_t index = m * M->n + n;
-    M->values[index]   = value;
+    _set_at_helpers[M->dt](M->values, index, value);
+
+    // TODO: M->values[index]   = value;
 
     return MATRIX_SUCCESS;
 }
 
-int Matrix_get_at(double* target,
-                  const Matrix* M,
-                  const size_t m,
-                  const size_t n)
+static void _get_at_int(const void* M_values, const size_t index, void* target)
+{
+    const void* ptr    = M_values + index;
+    const long* source = (long*)ptr;
+    long* target_ptr   = (long*)target;
+    *target_ptr        = *source;
+}
+
+static void _get_at_real(const void* M_values, const size_t index, void* target)
+{
+    const void* ptr      = M_values + index;
+    const double* source = (double*)ptr;
+    double* target_ptr   = (double*)target;
+    *target_ptr          = *source;
+}
+
+static void _get_at_cmpl(const void* M_values, const size_t index, void* target)
+{
+    const void* ptr              = M_values + index;
+    const complex double* source = (complex double*)ptr;
+    complex double* target_ptr   = (complex double*)target;
+    *target_ptr                  = *source;
+}
+
+static void (*_get_at_helpers[TYPE_COUNT])(const void* M_values,
+                                           const size_t index,
+                                           void* target) = {
+    [Int]     = _get_at_int,
+    [Real]    = _get_at_real,
+    [Complex] = _get_at_cmpl,
+};
+
+int Matrix_get_at(void* target, const Matrix* M, const size_t m, const size_t n)
 {
     if (m >= M->m || n >= M->n)
     {
@@ -292,9 +647,65 @@ int Matrix_get_at(double* target,
     }
 
     const size_t index = m * M->n + n;
-    *target            = M->values[index];
+    _get_at_helpers[M->dt](M->values, index, target);
+
     return MATRIX_SUCCESS;
 }
+
+static bool _all_close_int(const Matrix* A, const Matrix* B)
+{
+    for (size_t i = 0; i < A->m * A->n; i++)
+    {
+        void* ptr1  = A->values + i;
+        void* ptr2  = B->values + i;
+        long* ptr1i = (long*)ptr1;
+        long* ptr2i = (long*)ptr2;
+        if (*ptr1i == *ptr2i)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool _all_close_real(const Matrix* A, const Matrix* B)
+{
+    for (size_t i = 0; i < A->m * A->n; i++)
+    {
+        void* ptr1    = A->values + i;
+        void* ptr2    = B->values + i;
+        double* ptr1d = (double*)ptr1;
+        double* ptr2d = (double*)ptr2;
+        if (fabs(*ptr1d - *ptr2d) > EPS)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool _all_close_cmpl(const Matrix* A, const Matrix* B)
+{
+    for (size_t i = 0; i < A->m * A->n; i++)
+    {
+        void* ptr1            = A->values + i;
+        void* ptr2            = B->values + i;
+        complex double* ptr1d = (complex double*)ptr1;
+        complex double* ptr2d = (complex double*)ptr2;
+        if (cabs(*ptr1d - *ptr2d) > EPS)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool (*_all_close_helpers[TYPE_COUNT])(const Matrix* A,
+                                              const Matrix* B) = {
+    [Int]     = _all_close_int,
+    [Real]    = _all_close_real,
+    [Complex] = _all_close_cmpl
+};
 
 int Matrix_all_close(const Matrix* A, const Matrix* B)
 {
@@ -303,14 +714,9 @@ int Matrix_all_close(const Matrix* A, const Matrix* B)
         return 0;
     }
 
-    for (size_t i = 0; i < A->m * A->n; i++)
-    {
-        if (fabs(A->values[i] - B->values[i]) > EPS)
-        {
-            return 0;
-        }
-    }
-    return 1;
+    DataType dt = (A->dt > B->dt) ? A->dt : B->dt;
+
+    return _all_close_helpers[dt](A, B);
 }
 
 void Matrix_free(Matrix* M)
@@ -320,31 +726,153 @@ void Matrix_free(Matrix* M)
     M->m = 0, M->n = 0;
 }
 
-double Matrix_max(const Matrix* M)
+static void _max_int(void* target, const Matrix* M)
+{
+    long max = -LONG_MAX;
+    for (int i = 0; i < M->m * M->n; i++)
+    {
+        void* ptr = M->values + i;
+        long* val = (long*)ptr;
+        if (*val > max)
+        {
+            max = *val;
+        }
+    }
+    long* target_val = (long*)target;
+    *target_val      = max;
+}
+
+static void _max_real(void* target, const Matrix* M)
 {
     double max = -INFINITY;
     for (int i = 0; i < M->m * M->n; i++)
     {
-        if (M->values[i] > max)
+        void* ptr   = M->values + i;
+        double* val = (double*)ptr;
+        if (*val > max)
         {
-            max = M->values[i];
+            max = *val;
         }
     }
-    return max;
+    double* target_val = (double*)target;
+    *target_val        = max;
 }
 
-double Matrix_min(const Matrix* M)
+static void _max_cmpl(void* target, const Matrix* M)
+{
+    double max = -INFINITY;
+    for (int i = 0; i < M->m * M->n; i++)
+    {
+        void* ptr           = M->values + i;
+        complex double* val = (complex double*)ptr;
+        if (cabs(*val) > max)
+        {
+            max = *val;
+        }
+    }
+    double* target_val = (double*)target;
+    *target_val        = max;
+}
+
+static void (*_max_helpers[TYPE_COUNT])(void* target, const Matrix* M) = {
+    [Int]     = _max_int,
+    [Real]    = _max_real,
+    [Complex] = _max_cmpl,
+};
+
+void Matrix_max(void* target, const Matrix* M)
+{
+    double max = -INFINITY;
+    _max_helpers[M->dt](target, M);
+}
+
+static void _min_int(void* target, const Matrix* M)
+{
+    long min = LONG_MAX;
+    for (int i = 0; i < M->m * M->n; i++)
+    {
+        void* ptr = M->values + i;
+        long* val = (long*)ptr;
+        if (*val < min)
+        {
+            min = *val;
+        }
+    }
+    long* target_val = (long*)target;
+    *target_val      = min;
+}
+
+static void _min_real(void* target, const Matrix* M)
 {
     double min = INFINITY;
     for (int i = 0; i < M->m * M->n; i++)
     {
-        if (M->values[i] < min)
+        void* ptr   = M->values + i;
+        double* val = (double*)ptr;
+        if (*val < min)
         {
-            min = M->values[i];
+            min = *val;
         }
     }
-    return min;
+    double* target_val = (double*)target;
+    *target_val        = min;
 }
+
+static void _min_cmpl(void* target, const Matrix* M)
+{
+    double max = INFINITY;
+    for (int i = 0; i < M->m * M->n; i++)
+    {
+        void* ptr           = M->values + i;
+        complex double* val = (complex double*)ptr;
+        if (cabs(*val) < max)
+        {
+            max = *val;
+        }
+    }
+    double* target_val = (double*)target;
+    *target_val        = max;
+}
+
+static void (*_min_helpers[TYPE_COUNT])(void* target, const Matrix* M) = {
+    [Int]     = _min_int,
+    [Real]    = _min_real,
+    [Complex] = _min_cmpl,
+};
+
+void Matrix_min(void* target, const Matrix* M)
+{
+    double min = INFINITY;
+    _min_helpers[M->dt](target, M);
+}
+
+static void _print_int(void* value)
+{
+    long* val_type = (long*)value;
+    char* sep      = (*val_type > 0) ? "  " : " ";
+    printf("%zu%s", *val_type, sep);
+}
+
+static void _print_real(void* value)
+{
+    double* val_type = (double*)value;
+    char* sep        = (*val_type > 0) ? "  " : " ";
+    printf("%f%s", *val_type, sep);
+}
+
+static void _print_cmpl(void* value)
+{
+    complex double* val_type = (complex double*)value;
+    char* sep                = (creal(*val_type) > 0) ? "  " : " ";
+    PRINT_COMPLEX(*val_type);
+    puts(sep);
+}
+
+static void (*_printers[TYPE_COUNT])(void* value) = {
+    [Int]     = _print_int,
+    [Real]    = _print_real,
+    [Complex] = _print_cmpl,
+};
 
 void Matrix_print(const Matrix* M)
 {
@@ -366,17 +894,9 @@ void Matrix_print(const Matrix* M)
             {
                 printf("| ");
             }
-            double val = M->values[i * M->n + j];
-            char* sep  = "";
-            if (val > 0)
-            {
-                sep = "  ";
-            }
-            else
-            {
-                sep = " ";
-            }
-            printf("%f%s", val, sep);
+
+            _printers[M->dt](M->values + i * M->n + j);
+
             if (j == n - 1 && i == 0)
             {
                 printf("\\");
@@ -398,54 +918,222 @@ void Matrix_print(const Matrix* M)
     }
 }
 
-double _Frobenius_helper(const Matrix* M)
+static void _frobenius_helper_int(void* target, const Matrix* M)
 {
-    double s = 0.0;
-
+    long s = 0;
     for (size_t i = 0; i < M->m * M->n; i++)
     {
-        s += M->values[i] * M->values[i];
+        void* ptr1 = M->values + i;
+        void* ptr2 = M->values + i;
+        long* val1 = (long*)ptr1;
+        long* val2 = (long*)ptr2;
+
+        s += *val1 * *val2;
     }
-    return sqrt(s);
+    memcpy(target, &s, _elem_size(Int));
 }
 
-double _Spectral_helper(const Matrix* M)
+static void _frobenius_helper_real(void* target, const Matrix* M)
+{
+    double s = 0;
+    for (size_t i = 0; i < M->m * M->n; i++)
+    {
+        void* ptr1   = M->values + i;
+        void* ptr2   = M->values + i;
+        double* val1 = (double*)ptr1;
+        double* val2 = (double*)ptr2;
+
+        s += *val1 * *val2;
+    }
+    memcpy(target, &s, _elem_size(Real));
+}
+
+static void _frobenius_helper_cmpl(void* target, const Matrix* M)
+{
+    complex double s = 0;
+    for (size_t i = 0; i < M->m * M->n; i++)
+    {
+        void* ptr1           = M->values + i;
+        void* ptr2           = M->values + i;
+        complex double* val1 = (complex double*)ptr1;
+        complex double* val2 = (complex double*)ptr2;
+
+        s += *val1 * *val2;
+    }
+    memcpy(target, &s, _elem_size(Complex));
+}
+
+static void (*_frobenius_helpers[TYPE_COUNT])(void* target, const Matrix* M) = {
+    [Int]     = _frobenius_helper_int,
+    [Real]    = _frobenius_helper_real,
+    [Complex] = _frobenius_helper_cmpl
+};
+
+static void _spectral_helper(void* target, const Matrix* M)
 {
     Vector eigvals = Vector_zeros(M->n);
-    Matrix_eigvals(&eigvals, M, false);
-
-    double max = -INFINITY;
-    for (size_t i = 0; i < eigvals.dim; i++)
-    {
-        if (fabs(eigvals.values[i]) > max)
-        {
-            max = fabs(eigvals.values[i]);
-        }
-    }
+    Matrix_eigvals(&eigvals, M, true);
+    // TODO: correct eigval logic
+    void* eig_ptr     = eigvals.values + M->n - 1;
+    double* eig_ptr_t = (double*)eig_ptr;
+    memcpy(target, eig_ptr_t, _elem_size(M->dt));
 
     Vector_free(&eigvals);
-    return max;
 }
 
-double Matrix_norm(const Matrix* M, NormType nt)
+void Matrix_norm(void* target, const Matrix* M, NormType nt)
 {
     double result = 0;
     switch (nt)
     {
         case FROBENIUS:
         {
-            return _Frobenius_helper(M);
+            _frobenius_helpers[M->dt](target, M);
+            break;
         }
         case SPECTRAL:
         {
-            return _Spectral_helper(M);
+            _spectral_helper(target, M);
+            break;
         }
         default:
         {
-            return 0;
+            break;
         }
     }
 }
+
+static void _add_sub_int(operator_e op, Matrix* target, const Matrix* M)
+{
+    long *ptr1 = NULL, *ptr2 = NULL;
+
+    switch (op)
+    {
+        case Add:
+        {
+            for (size_t n = 0; n < M->m * M->n; n++)
+            {
+                ptr1 = (long*)target->values + n;
+                ptr2 = (long*)M->values + n;
+                *ptr1 += *ptr2;
+            }
+            break;
+        }
+        case Sub:
+        {
+            for (size_t n = 0; n < M->m * M->n; n++)
+            {
+                ptr1 = (long*)target->values + n;
+                ptr2 = (long*)M->values + n;
+                *ptr1 -= *ptr2;
+            }
+            break;
+        }
+        default:
+        {
+            char buf[128];
+            snprintf(buf,
+                     sizeof(buf),
+                     "Invalid value encountered in _add_sub_int() Got op=%d, "
+                     "expected 0 <= op < %d",
+                     op,
+                     OPERATOR_COUNT);
+            Log_log(buf, LOG_RT_WARNING);
+            break;
+        }
+    }
+}
+
+static void _add_sub_real(operator_e op, Matrix* target, const Matrix* M)
+{
+    double *ptr1 = NULL, *ptr2 = NULL;
+
+    switch (op)
+    {
+        case Add:
+        {
+            for (size_t n = 0; n < M->m * M->n; n++)
+            {
+                ptr1 = (double*)target->values + n;
+                ptr2 = (double*)M->values + n;
+                *ptr1 += *ptr2;
+            }
+            break;
+        }
+        case Sub:
+        {
+            for (size_t n = 0; n < M->m * M->n; n++)
+            {
+                ptr1 = (double*)target->values + n;
+                ptr2 = (double*)M->values + n;
+                *ptr1 -= *ptr2;
+            }
+            break;
+        }
+        default:
+        {
+            char buf[128];
+            snprintf(buf,
+                     sizeof(buf),
+                     "Invalid value encountered in _add_sub_real() Got op=%d, "
+                     "expected 0 <= op < %d",
+                     op,
+                     OPERATOR_COUNT);
+            Log_log(buf, LOG_RT_WARNING);
+            break;
+        }
+    }
+}
+
+static void _add_sub_cmpl(operator_e op, Matrix* target, const Matrix* M)
+{
+    complex double *ptr1 = NULL, *ptr2 = NULL;
+
+    switch (op)
+    {
+        case Add:
+        {
+            for (size_t n = 0; n < M->m * M->n; n++)
+            {
+                ptr1 = (complex double*)target->values + n;
+                ptr2 = (complex double*)M->values + n;
+                *ptr1 += *ptr2;
+            }
+            break;
+        }
+        case Sub:
+        {
+            for (size_t n = 0; n < M->m * M->n; n++)
+            {
+                ptr1 = (complex double*)target->values + n;
+                ptr2 = (complex double*)M->values + n;
+                *ptr1 -= *ptr2;
+            }
+            break;
+        }
+        default:
+        {
+            char buf[128];
+            snprintf(
+              buf,
+              sizeof(buf),
+              "Invalid value encountered in _add_sub_complex() Got op=%d, "
+              "expected 0 <= op < %d",
+              op,
+              OPERATOR_COUNT);
+            Log_log(buf, LOG_RT_WARNING);
+            break;
+        }
+    }
+}
+
+static void (*_add_sub_units[TYPE_COUNT])(operator_e op,
+                                          Matrix* target,
+                                          const Matrix* M) = {
+    [Int]     = _add_sub_int,
+    [Real]    = _add_sub_real,
+    [Complex] = _add_sub_cmpl,
+};
 
 int Matrix_add(Matrix* target, const Matrix* M)
 {
@@ -454,10 +1142,8 @@ int Matrix_add(Matrix* target, const Matrix* M)
         Log_log("Index out of range in Matrix_add()!", LOG_RT_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
-    for (size_t n = 0; n < M->m * M->n; n++)
-    {
-        target->values[n] += M->values[n];
-    }
+    DataType dt = (target->dt > M->dt) ? target->dt : M->dt;
+    _add_sub_units[dt](Add, target, M);
     return MATRIX_SUCCESS;
 }
 
@@ -468,20 +1154,54 @@ int Matrix_sub(Matrix* target, const Matrix* M)
         Log_log("Index out of range in Matrix_sub()!", LOG_RT_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
-    for (size_t n = 0; n < M->m * M->n; n++)
-    {
-        target->values[n] -= M->values[n];
-    }
+    DataType dt = (target->dt > M->dt) ? target->dt : M->dt;
+    _add_sub_units[dt](Sub, target, M);
     return MATRIX_SUCCESS;
 }
 
-void Matrix_scale(Matrix* target, const double lambda)
+static void _scale_int(Matrix* target, const complex double lambda)
+{
+    const size_t N        = target->m * target->n;
+    const size_t lambda_w = round(creal(lambda));
+    for (int n = 0; n < N; n++)
+    {
+        long* ptr = (long*)target->values + n;
+        *ptr *= lambda_w;
+    }
+}
+
+static void _scale_real(Matrix* target, const complex double lambda)
+{
+    const size_t N        = target->m * target->n;
+    const double lambda_w = creal(lambda);
+    for (int n = 0; n < N; n++)
+    {
+        double* ptr = (double*)target->values + n;
+        *ptr *= lambda_w;
+    }
+}
+
+static void _scale_cmpl(Matrix* target, const complex double lambda)
 {
     const size_t N = target->m * target->n;
     for (int n = 0; n < N; n++)
     {
-        target->values[n] *= lambda;
+        complex double* ptr = (complex double*)target->values + n;
+        *ptr *= lambda;
     }
+}
+
+static void (*_scale_units[TYPE_COUNT])(Matrix* target,
+                                        const complex double lambda) = {
+    [Int]     = _scale_int,
+    [Real]    = _scale_real,
+    [Complex] = _scale_cmpl,
+};
+
+void Matrix_scale(Matrix* target, const complex double lambda)
+{
+    const size_t N = target->m * target->n;
+    _scale_units[target->dt](target, lambda);
 }
 
 static int _invert_n_n_matrix(Matrix* target, const Matrix* M)
@@ -490,7 +1210,7 @@ static int _invert_n_n_matrix(Matrix* target, const Matrix* M)
     const size_t n = M->n;
 
     // Make a working copy of M
-    Matrix M_copy = Matrix_new(0, 0, 0.0);
+    Matrix M_copy = Matrix_new(0, 0, Real);
     Matrix_copy(&M_copy, M);
 
     // Initialize target as identity
@@ -658,9 +1378,124 @@ static int _invert_via_lu(Matrix* target, const Matrix* M)
     return MATRIX_SUCCESS;
 }
 
+int _2_x_2_int(Matrix* target, const Matrix* M, void** ptrs)
+{
+    long *a, *b, *c, *d;
+    for (char i = 0; i < 4; i++)
+    {
+        ptrs[i] = M->values + i;
+        a       = (long*)ptrs[i];
+    }
+
+    const long denom = *a * *d - *b * *c;
+
+    if (denom == 0)
+    {
+        Log_log("Math error in Matrix_inverse(), 2x2 case. Matrix is not "
+                "invertable.",
+                LOG_RT_ERROR);
+        return MATRIX_MATH_ERROR;
+    }
+
+    const double scalar = 1.0 / denom;
+    double init_vals[4] = {
+        scalar * *d, scalar * -*b, scalar * -*c, scalar * *a
+    };
+    bool all_int = true;
+    for (char i = 0; i < 4; i++)
+    {
+        if (fabs(init_vals[i] - (long)init_vals) > EPS)
+        {
+            all_int = false;
+            break;
+        }
+    }
+    // If all values are integers, no need to
+    // generalize to a Real valued Matrix
+    if (all_int)
+    {
+        Matrix_prepare_target(target, 2, 2, Int);
+        for (char i = 0; i < 4; i++)
+        {
+            long val = (long)init_vals[i];
+            memcpy(target->values + i, &val, _elem_size(Int));
+        }
+        return MATRIX_SUCCESS;
+    }
+
+    Matrix_prepare_target(target, 2, 2, Real);
+    memcpy(target->values, init_vals, 4 * _elem_size(Int));
+    return MATRIX_SUCCESS;
+}
+
+int _2_x_2_real(Matrix* target, const Matrix* M, void** ptrs)
+{
+    Matrix_prepare_target(target, 2, 2, Real);
+    double *a, *b, *c, *d;
+    for (char i = 0; i < 4; i++)
+    {
+        ptrs[i] = M->values + i;
+        a       = (double*)ptrs[i];
+    }
+
+    const double denom = *a * *d - *b * *c;
+
+    if (fabs(denom) < EPS)
+    {
+        Log_log("Math error in Matrix_inverse(), 2x2 case. Matrix is not "
+                "invertable.",
+                LOG_RT_ERROR);
+        return MATRIX_MATH_ERROR;
+    }
+
+    const double scalar = 1.0 / denom;
+    double init_vals[4] = {
+        scalar * *d, scalar * -*b, scalar * -*c, scalar * *a
+    };
+
+    memcpy(target->values, init_vals, 4 * _elem_size(Real));
+    return MATRIX_SUCCESS;
+}
+
+int _2_x_2_cmpl(Matrix* target, const Matrix* M, void** ptrs)
+{
+    Matrix_prepare_target(target, 2, 2, Complex);
+    complex double *a, *b, *c, *d;
+    for (char i = 0; i < 4; i++)
+    {
+        ptrs[i] = M->values + i;
+        a       = (complex double*)ptrs[i];
+    }
+
+    const complex double denom = *a * *d - *b * *c;
+
+    if (cabs(denom) < EPS)
+    {
+        Log_log("Math error in Matrix_inverse(), 2x2 case. Matrix is not "
+                "invertable.",
+                LOG_RT_ERROR);
+        return MATRIX_MATH_ERROR;
+    }
+
+    const complex double scalar = 1.0 / denom;
+    complex double init_vals[4] = {
+        scalar * *d, scalar * -*b, scalar * -*c, scalar * *a
+    };
+
+    memcpy(target->values, init_vals, 4 * _elem_size(Complex));
+    return MATRIX_SUCCESS;
+}
+
+int (*_2_x_2_units[TYPE_COUNT])(Matrix* target,
+                                const Matrix* M,
+                                void** ptrs) = {
+    [Int]     = _2_x_2_int,
+    [Real]    = _2_x_2_real,
+    [Complex] = _2_x_2_cmpl,
+};
+
 int Matrix_inverse(Matrix* target, const Matrix* M)
 {
-    Matrix_prepare_target(target, M->m, M->n);
     if (M->m != M->n)
     {
         Log_log("Cannot invert matrix where n!=m", LOG_RT_ERROR);
@@ -668,36 +1503,11 @@ int Matrix_inverse(Matrix* target, const Matrix* M)
     }
     if (M->m == 2 && M->n == 2)
     {
-        double a, b, c, d;
-        int status = 0;
-
-        a = M->values[0];
-        b = M->values[1];
-        c = M->values[2];
-        d = M->values[3];
-        if (status != MATRIX_SUCCESS * 4)
-        {
-            Log_log("Dimension error in Matrix_inverse(), 2x2 case.",
-                    LOG_RT_ERROR);
-            return MATRIX_DIMENSION_ERROR;
-        }
-        const double denom = a * d - b * c;
-        if (fabs(denom) < EPS)
-        {
-            Log_log("Math error in Matrix_inverse(), 2x2 case. Matrix is not "
-                    "invertable.",
-                    LOG_RT_ERROR);
-            return MATRIX_MATH_ERROR;
-        }
-        const double scalar = 1 / denom;
-        double init_vals[4] = { d, -b, -c, a };
-
-        Matrix tmp = Matrix_new_vals(M->m, M->n, init_vals);
-        Matrix_scale(&tmp, scalar);
-        Matrix_copy(target, &tmp);
-        return MATRIX_SUCCESS;
+        void* ptrs[4] = { NULL };
+        _2_x_2_units[M->dt](target, M, ptrs);
     }
 
+    Matrix_prepare_target(target, M->m, M->n, M->dt);
     int status = _invert_via_lu(target, M);
     if (status != MATRIX_SUCCESS)
     {
@@ -749,7 +1559,7 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
         return MATRIX_DIMENSION_ERROR;
     }
 
-    Matrix_prepare_target(target, M1->n, M2->m);
+    Matrix_prepare_target(target, M1->n, M2->m, M2->dt);
 
     double* restrict M1_values     = M1->values;
     double* restrict M2_values     = M2->values;
@@ -784,7 +1594,7 @@ int Matrix_jacobi(Matrix* target, const Vector* x, Vector (*f)(const Vector* x))
     const size_t M   = f_x.dim;
     const size_t N   = x->dim;
     Vector f_x_eps   = Vector_zeros(M);
-    Matrix_prepare_target(target, M, N);
+    Matrix_prepare_target(target, M, N, x->dt);
     Vector x_eps = Vector_zeros_like(x);
     Vector_copy(&x_eps, x);
     double fn_x, fn_x_eps;
@@ -799,7 +1609,12 @@ int Matrix_jacobi(Matrix* target, const Vector* x, Vector (*f)(const Vector* x))
             fn_x     = f_x.values[m];
             fn_x_eps = f_x_eps.values[m];
 
-            target->values[m * target->n + n] = (fn_x_eps - fn_x) / MATRIX_EPS;
+            double value = (fn_x_eps - fn_x) / MATRIX_EPS;
+            memcpy(
+              target->values + m * target->n + n, &value, _elem_size(Real));
+
+            // target->values[m * target->n + n] = (fn_x_eps - fn_x) /
+            // MATRIX_EPS;
         }
     }
 
@@ -816,11 +1631,14 @@ int Matrix_Vector_solve(Vector* target, const Matrix* M, const Vector* v)
     Matrix M_copy = Matrix_new(M->m, M->n, 0);
     Matrix_copy(&M_copy, M);
     Vector_copy(target, v);
+    void* ptr = NULL;
 
     // Phase one
+    // TODO: generalize, just making it compile now
     for (size_t m = 0; m < M->m; m++)
     {
-        double lambda    = 1.0 / M_copy.values[m * M_copy.n + m];
+        ptr              = M_copy.values + m * M_copy.n + m;
+        double lambda    = 1.0 / *(double*)ptr;
         double* row_vals = M_copy.values + m * M_copy.n;
         Vector row       = Vector_new_vals(M->n, row_vals);
         Vector_scale(&row, lambda);
@@ -832,7 +1650,10 @@ int Matrix_Vector_solve(Vector* target, const Matrix* M, const Vector* v)
 
         for (size_t n = m + 1; n < M->m; n++)
         {
-            lambda = M_copy.values[n * M_copy.n + m];
+            ptr = M_copy.values + n * M_copy.n + m;
+            // double* l_ptr = (double*)ptr;
+
+            lambda = *(double*)ptr;
             Vector_scale(&row, lambda);
             target_val *= lambda;
             row_vals     = M_copy.values + n * M->n;
@@ -861,7 +1682,8 @@ int Matrix_Vector_solve(Vector* target, const Matrix* M, const Vector* v)
         double target_val = target->values[m];
         for (long n = m - 1; n >= 0; n--)
         {
-            lambda = M_copy.values[n * M_copy.n + m];
+            ptr    = M_copy.values + n * M_copy.n + m;
+            lambda = *(double*)ptr;
             Vector_scale(&row, lambda);
             target_val *= lambda;
 
@@ -903,7 +1725,10 @@ int Matrix_column_pivot(Matrix* A, size_t k, size_t* P)
     {
         double norm = 0.0;
         for (size_t i = 0; i < m; i++)
-            norm += A->values[i * n + j] * A->values[i * n + j];
+        {
+            void* ptr = A->values + i * n + j;
+            norm += *(double*)ptr * *(double*)ptr;
+        }
 
         if (norm > best_norm)
         {
@@ -917,9 +1742,15 @@ int Matrix_column_pivot(Matrix* A, size_t k, size_t* P)
     {
         for (size_t i = 0; i < m; i++)
         {
-            double tmp                = A->values[i * n + k];
-            A->values[i * n + k]      = A->values[i * n + best_j];
-            A->values[i * n + best_j] = tmp;
+            void* ptr          = A->values + i * n + k;
+            double* tmp        = (double*)ptr;
+            void* A_i_n_k_ptr  = A->values + i * n + k;
+            void* A_i_n_bj_ptr = A->values + i * n + best_j;
+            double* best_j_val = (double*)A_i_n_bj_ptr;
+            // A->values[i * n + k]      = A->values[i * n + best_j];
+            // A->values[i * n + best_j] = tmp;
+            memcpy(A_i_n_k_ptr, best_j_val, _elem_size(Real));
+            memcpy(A_i_n_bj_ptr, tmp, _elem_size(Real));
         }
 
         // Update permutation vector
@@ -939,7 +1770,7 @@ int Matrix_Matrix_dot_jordan(Matrix* target, const Matrix* M1, const Matrix* M2)
                 LOG_RT_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
-    Matrix_prepare_target(target, M1->m, M1->n);
+    Matrix_prepare_target(target, M1->m, M1->n, M1->dt);
     Matrix AB = Matrix_new(0, 0, 0.0);
     Matrix BA = Matrix_new(0, 0, 0.0);
     Matrix_Matrix_dot(&AB, M1, M2);
@@ -958,9 +1789,11 @@ int Matrix_QR(Matrix* Q, Matrix* R, const Matrix* A)
     size_t m = A->m;
     size_t n = A->n;
     Matrix_copy(R, A);
-    Matrix I = Matrix_diag_val(A->n, 1);
-    Matrix_copy(Q, &I);
-    Matrix_free(&I);
+    complex double* ones = malloc(A->n * _elem_size(Complex));
+    Matrix Unit          = Matrix_diag_val(A->n, ones, Complex);
+    free(ones);
+    Matrix_copy(Q, &Unit);
+    Matrix_free(&Unit);
 
     for (size_t k = 0; k < A->n; k++)
     {
@@ -969,7 +1802,11 @@ int Matrix_QR(Matrix* Q, Matrix* R, const Matrix* A)
         Vector x = Vector_zeros(rows);
         for (size_t i = 0; i < rows; i++)
         {
-            x.values[i] = R->values[(k + i) * n + k];
+            void* R_ptr   = R->values + (k + i) * n + k;
+            void* x_ptr   = x.values + i;
+            double* R_val = (double*)R_ptr;
+            // x.values[i]   = R->values[(k + i) * n + k];
+            memcpy(x_ptr, R_val, _elem_size(Real));
         }
 
         double norm_x = Vector_norm(&x);
@@ -991,11 +1828,16 @@ int Matrix_QR(Matrix* Q, Matrix* R, const Matrix* A)
             double dot = 0.0;
             for (size_t i = 0; i < rows; i++)
             {
-                dot += v.values[i] * R->values[(k + i) * n + j];
+                double* v_ptr = v.values + i;
+                double* R_ptr = R->values + (k + i) * n + k;
+                dot += *v_ptr * *R_ptr;
             }
             for (size_t i = 0; i < rows; i++)
             {
-                R->values[(k + i) * n + j] -= 2 * v.values[i] * dot;
+                double* v_val = (double*)v.values + i;
+                double* R_val = (double*)R->values + (k + i) * n + k;
+                *R_val -= *v_val;
+                // R->values[(k + i) * n + j] -= 2 * v.values[i] * dot;
             }
         }
 
@@ -1004,12 +1846,17 @@ int Matrix_QR(Matrix* Q, Matrix* R, const Matrix* A)
             double dot = 0.0;
             for (size_t r = 0; r < rows; r++)
             {
-                dot += Q->values[i * n + (k + r)] * v.values[r];
+                double* Q_val = Q->values + i * n + (k + r);
+                double* v_val = v.values + r;
+                dot += *Q_val * *v_val;
             }
 
             for (size_t r = 0; r < rows; r++)
             {
-                Q->values[i * n + (k + r)] -= 2 * dot * v.values[r];
+                double* Q_val = Q->values + i * n + (k + r);
+                double* v_val = v.values + r;
+                *Q_val -= 2 * dot * *v_val;
+                // Q->values[i * n + (k + r)] -= 2 * dot * v.values[r];
             }
         }
         Vector_free(&v);
@@ -1100,13 +1947,13 @@ void _Matrix_QR_hessenberg_raw(double* restrict Q_values,
 
 int _eigvals_two(Vector* eigenvalues, const Matrix* M)
 {
-    const double a = M->values[0];
-    const double b = M->values[1];
-    const double c = M->values[2];
-    const double d = M->values[3];
+    const double* a = M->values + 0;
+    const double* b = M->values + 1;
+    const double* c = M->values + 2;
+    const double* d = M->values + 3;
 
-    const double p     = -(a + d);
-    const double q     = a * d - b * c;
+    const double p     = -(*a + *d);
+    const double q     = *a * *d - *b * *c;
     const double inner = 0.25 * p * p - q;
     Vector_prepare_target(eigenvalues, 2);
     if (inner < 0.0)
@@ -1126,14 +1973,14 @@ double _wilkinson_shift(const Matrix* H, size_t active)
 {
     size_t n = H->n;
 
-    double a = H->values[(active - 2) * n + (active - 2)];
-    double b = H->values[(active - 2) * n + (active - 1)];
-    double c = H->values[(active - 1) * n + (active - 2)];
-    double d = H->values[(active - 1) * n + (active - 1)];
+    double* a = H->values + (active - 2) * n + (active - 2);
+    double* b = H->values + (active - 2) * n + (active - 1);
+    double* c = H->values + (active - 1) * n + (active - 2);
+    double* d = H->values + (active - 1) * n + (active - 1);
 
-    double tr        = (a + d) * 0.5;
-    double det       = (a - d) * 0.5;
-    double disc_term = det * det + b * c;
+    double tr        = (*a + *d) * 0.5;
+    double det       = (*a - *d) * 0.5;
+    double disc_term = det * det + *b * *c;
     if (disc_term < 0.0)
     {
         disc_term = 0.0;
@@ -1143,7 +1990,7 @@ double _wilkinson_shift(const Matrix* H, size_t active)
     double lambda1 = tr + disc;
     double lambda2 = tr - disc;
 
-    return (fabs(lambda1 - d) < fabs(lambda2 - d)) ? lambda1 : lambda2;
+    return (fabs(lambda1 - *d) < fabs(lambda2 - *d)) ? lambda1 : lambda2;
 }
 
 int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
@@ -1151,7 +1998,7 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
     const size_t max_iters = 10000;
     const double eps       = 1e-12;
 
-    Matrix H = Matrix_zeros_like(M);
+    Matrix H = Matrix_zeros_like(M, Complex);
     Matrix_Hessenberg(&H, M); // Q^T M Q → upper Hessenberg
     Matrix Q;
     Q.m      = H.m;
@@ -1178,7 +2025,7 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
         for (size_t iter = 0; iter < max_iters; iter++)
         {
             total_iters++;
-            double sub = fabs(H.values[(active - 1) * n + (active - 2)]);
+            double sub = fabs(H_values[(active - 1) * n + (active - 2)]);
 
             if (sub < eps)
             {
@@ -1203,12 +2050,12 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
 #pragma omp simd
             for (size_t i = 0; i < active; i++)
             {
-                H.values[i * n + i] += mu;
+                H_values[i * n + i] += mu;
             }
             bool converged = true;
             for (size_t i = 0; i < active - 1; i++)
             {
-                if (fabs(H.values[(i + 1) * n + i]) > eps)
+                if (fabs(H_values[(i + 1) * n + i]) > eps)
                 {
                     converged = false;
                     break;
@@ -1220,7 +2067,7 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
             }
         }
 
-        if (fabs(H.values[(active - 1) * n + (active - 2)]) < eps)
+        if (fabs(H_values[(active - 1) * n + (active - 2)]) < eps)
         {
             active--;
             continue;
@@ -1234,7 +2081,7 @@ int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
 #pragma omp simd
     for (size_t i = 0; i < n; i++)
     {
-        eigenvalues->values[i] = H.values[i * n + i];
+        eigenvalues->values[i] = H_values[i * n + i];
     }
     if (sort)
     {
@@ -1265,8 +2112,10 @@ int _outer_scalar(Matrix* target, const Vector* a, const Vector* b)
         for (size_t n = 0; n < b->dim; n++)
         {
 
-            double value                      = a->values[m] * b->values[n];
-            target->values[m * target->n + n] = value;
+            double value  = a->values[m] * b->values[n];
+            double* t_val = target->values + m * target->n + n;
+            *t_val        = value;
+            // target->values[m * target->n + n] = value;
         }
     }
 
@@ -1281,8 +2130,10 @@ int _outer_parallel(Matrix* target, const Vector* a, const Vector* b)
         for (size_t n = 0; n < b->dim; n++)
         {
 
-            double value                      = a->values[m] * b->values[n];
-            target->values[m * target->n + n] = value;
+            double value  = a->values[m] * b->values[n];
+            double* t_val = target->values + m * target->n + n;
+            *t_val        = value;
+            // target->values[m * target->n + n] = value;
         }
     }
 
@@ -1291,7 +2142,8 @@ int _outer_parallel(Matrix* target, const Vector* a, const Vector* b)
 
 int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b)
 {
-    Matrix_prepare_target(target, a->dim, b->dim);
+    Matrix_prepare_target(
+      target, a->dim, b->dim, (a->dt > b->dt) ? a->dt : b->dt);
     if (a->dim * b->dim > 200 * 200)
     {
         return _outer_parallel(target, a, b);
@@ -1306,9 +2158,14 @@ int _outer_square_scalar(Matrix* target, const Vector* v, const size_t N)
 #pragma omp simd
         for (size_t n = m; n < N; n++)
         {
-            double value                      = v->values[m] * v->values[n];
-            target->values[m * target->n + n] = value;
-            target->values[n * target->n + m] = value;
+            double value   = v->values[m] * v->values[n];
+            double* t_val1 = target->values + m * target->n + n;
+            double* t_val2 = target->values + n * target->n + m;
+            *t_val1        = value;
+            *t_val2        = value;
+
+            // target->values[m * target->n + n] = value;
+            // target->values[n * target->n + m] = value;
         }
     }
     return MATRIX_SUCCESS;
@@ -1322,7 +2179,7 @@ int Matrix_Vector_outer_square(Matrix* target, const Vector* v)
         return Matrix_Vector_outer(target, v, v);
     }
 
-    Matrix_prepare_target(target, v->dim, v->dim);
+    Matrix_prepare_target(target, v->dim, v->dim, v->dt);
     return _outer_square_scalar(target, v, v->dim);
 }
 
@@ -1336,6 +2193,7 @@ int Matrix_Hessenberg(Matrix* H, const Matrix* A)
     }
 
     Matrix_copy(H, A);
+    // Matrix_prepare_target(H, m, n);
     double* restrict H_values = H->values;
 
     for (size_t k = 0; k < m - 2; k++)
@@ -1426,38 +2284,52 @@ void Matrix_QR_hessenberg(Matrix* Q, Matrix* R, Matrix* H, size_t active)
 {
     size_t n = H->n;
     for (size_t i = 0; i < n; i++)
+    {
         for (size_t j = 0; j < n; j++)
-            Q->values[i * n + j] = (i == j ? 1.0 : 0.0);
+        {
+            double* Q_val = Q->values + i * n + j;
+            *Q_val        = (i == j ? 1.0 : 0.0);
+            // Q->values[i * n + j] = (i == j ? 1.0 : 0.0);
+        }
+    }
     Matrix_copy(R, H);
     for (size_t i = 0; i < active - 1; i++)
     {
-        double a = R->values[i * n + i];
-        double b = R->values[(i + 1) * n + i];
+        double* a = R->values + i * n + i;
+        double* b = R->values + (i + 1) * n + i;
 
-        if (fabs(b) < 1e-15)
+        if (fabs(*b) < 1e-15)
             continue;
 
         // Compute Givens rotation
-        double r = hypot(a, b);
-        double c = a / r;
-        double s = -b / r;
+        double r = hypot(*a, *b);
+        double c = *a / r;
+        double s = -*b / r;
 
         // Apply Givens rotation to R (right multiplication)
         for (size_t j = i; j < active; j++)
         {
-            double t1                  = R->values[i * n + j];
-            double t2                  = R->values[(i + 1) * n + j];
-            R->values[i * n + j]       = c * t1 - s * t2;
-            R->values[(i + 1) * n + j] = s * t1 + c * t2;
+            double* t1     = R->values + i * n + j;
+            double* t2     = R->values + (i + 1) * n + j;
+            double* R_val1 = R->values + i * n + j;
+            double* R_val2 = R->values + (i + 1) * n + j;
+            *R_val1        = c * *t1 - s * *t2;
+            *R_val2        = s * *t1 + c * *t2;
+            // R->values[i * n + j]       = c * *t1 - s * *t2;
+            // R->values[(i + 1) * n + j] = s * *t1 + c * *t2;
         }
 
         // Apply Givens rotation to Q (accumulate Q)
         for (size_t j = 0; j < active; j++)
         {
-            double t1                  = Q->values[j * n + i];
-            double t2                  = Q->values[j * n + (i + 1)];
-            Q->values[j * n + i]       = c * t1 - s * t2;
-            Q->values[j * n + (i + 1)] = s * t1 + c * t2;
+            double* t1     = Q->values + j * n + i;
+            double* t2     = Q->values + j * n + (i + 1);
+            double* Q_val1 = Q->values + j * n + i;
+            double* Q_val2 = Q->values + j * n + (i + 1);
+            *Q_val1        = c * *t1 - s * *t2;
+            *Q_val2        = s * *t1 + c * *t2;
+            // Q->values[j * n + i]       = c * t1 - s * t2;
+            // Q->values[j * n + (i + 1)] = s * t1 + c * t2;
         }
     }
 }
@@ -1482,17 +2354,72 @@ void Matrix_Matrix_dot_active(Matrix* H,
         {
             double sum = 0.0;
             for (size_t k = 0; k < active; k++)
-                sum += R->values[i * n + k] * Q->values[k * n + j];
+            {
+                double* R_val = R->values + i * n + k;
+                double* Q_val = Q->values + k * n + j;
+                sum += *R_val * *Q_val;
+            }
+            double* t_ptr = tmp.values + i * n + j;
 
-            tmp.values[i * n + j] = sum;
+            *t_ptr = sum;
         }
     }
 
     // Copy back only active block
     for (size_t i = 0; i < active; i++)
+    {
 #pragma omp simd
         for (size_t j = 0; j < active; j++)
-            H->values[i * n + j] = tmp.values[i * n + j];
+        {
+            double* t_val = tmp.values + i * n + j;
+            double* H_val = H->values + i * n + j;
+
+            *H_val = *t_val;
+        }
+    }
 
     Matrix_free(&tmp);
+}
+
+int Matrix_inner_dot(double* target, const Matrix* A, const Matrix* B)
+{
+    if (A->m != B->m || A->n != B->n)
+    {
+        return MATRIX_DIMENSION_ERROR;
+    }
+
+    double sum                = 0.0;
+    double* restrict A_values = A->values;
+    double* restrict B_values = B->values;
+// #pragma omp simd aligned(A_values, B_values : 32)
+#pragma omp parallel for
+    for (size_t i = 0; i < A->m * A->n; i++)
+    {
+        sum += A_values[i] * B_values[i];
+    }
+
+    *target = sum;
+
+    return MATRIX_SUCCESS;
+}
+
+int Matrix_Hadamard_dot(Matrix* target, const Matrix* A, const Matrix* B)
+{
+    const size_t M = A->m, N = A->n;
+    if (A->m != B->m || A->n != B->n)
+    {
+        return MATRIX_DIMENSION_ERROR;
+    }
+    Matrix_prepare_target(target, M, N, (A->dt > B->dt) ? A->dt : B->dt);
+    double* restrict A_values      = A->values;
+    double* restrict B_values      = B->values;
+    double* restrict target_values = target->values;
+
+// #pragma omp simd aligned(A_values, B_values, target_values : 32)
+#pragma omp parallel for
+    for (size_t i = 0; i < M * N; i++)
+    {
+        target_values[i] = A_values[i] * B_values[i];
+    }
+    return MATRIX_SUCCESS;
 }
