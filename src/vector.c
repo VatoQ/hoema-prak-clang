@@ -355,20 +355,18 @@ static void _heapify(Vector* v, size_t low, const size_t n, const size_t i)
     size_t largest = i;
     size_t l       = 2 * i + 1;
     size_t r       = 2 * i + 2;
-    if (l < n && v->values[l] > v->values[largest])
+    if (l < n && v->values[low + l] > v->values[low + largest])
     {
         largest = l;
     }
-    if (r < n && v->values[r] > v->values[largest])
+    if (r < n && v->values[low + r] > v->values[low + largest])
     {
         largest = r;
     }
 
     if (largest != i)
     {
-        // swap
         _swap(v, low + i, low + largest);
-
         _heapify(v, low, n, largest);
     }
 }
@@ -377,14 +375,14 @@ static void _heapsort(Vector* v, size_t low, size_t high)
 {
     const size_t n = high - low + 1;
 
-    for (ssize_t i = n / 2 - 1; i >= low; i--)
+    for (ssize_t i = n / 2 - 1; i >= 0; i--)
     {
         _heapify(v, low, n, i);
     }
 
-    for (ssize_t i = n - 1; i > low; i--)
+    for (ssize_t i = n - 1; i > 0; i--)
     {
-        _swap(v, 0, i);
+        _swap(v, low, low + i);
 
         _heapify(v, low, i, 0);
     }
