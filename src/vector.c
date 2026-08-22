@@ -1,7 +1,8 @@
+#include <iso646.h>
 #define _POSIX_C_SOURCE 200112L
-#include "../include/vector.h"
 #include "../include/logging.h"
 #include "../include/prng.h"
+#include "../include/vector.h"
 #include <alloca.h>
 #include <assert.h>
 #include <complex.h>
@@ -108,12 +109,56 @@ Vector Vector_new(const size_t dim, const void* init_val, const DataType dt)
     return v;
 }
 
+static void _assign_int(void* restrict target,
+                        const void* source,
+                        const size_t dim)
+{
+    ACCESS_VOID(int_t, ptr_t, target);
+    ACCESS_VOID(int_t, ptr_s, source);
+    for (size_t i = 0; i < dim; i++)
+    {
+        ptr_t[i] = ptr_s[i];
+    }
+}
+
+static void _assign_real(void* restrict target,
+                         const void* source,
+                         const size_t dim)
+{
+    ACCESS_VOID(real_t, ptr_t, target);
+    ACCESS_VOID(real_t, ptr_s, source);
+    for (size_t i = 0; i < dim; i++)
+    {
+        ptr_t[i] = ptr_s[i];
+    }
+}
+
+static void _assign_cmpl(void* restrict target,
+                         const void* source,
+                         const size_t dim)
+{
+    ACCESS_VOID(complex_t, ptr_t, target);
+    ACCESS_VOID(complex_t, ptr_s, source);
+    for (size_t i = 0; i < dim; i++)
+    {
+        ptr_t[i] = ptr_s[i];
+    }
+}
+
+static void (*_assign_units[TYPE_COUNT])(void* restrict target,
+                                         const void* source,
+                                         const size_t dim) = {
+    [Int]     = _assign_int,
+    [Real]    = _assign_real,
+    [Complex] = _assign_cmpl,
+};
+
 Vector Vector_new_vals(const size_t dim,
                        const void* init_vals,
                        const DataType dt)
 {
     Vector v = Vector_zeros(dim, dt);
-    memcpy(v.values, init_vals, dim * elem_size(dt));
+    _assign_units[dt](v.values, init_vals, dim);
     return v;
 }
 
@@ -122,11 +167,11 @@ static void _normal_int(const size_t dim,
                         const double variance,
                         void* v_values)
 {
+    ACCESS_VOID(int_t, vals_t, v_values);
     for (size_t n = 0; n < dim; n++)
     {
         double rnd = PRNG_State_normal(&prng, mean, variance);
-        ACCESS_VOID(int_t, ptr, v_values + n);
-        ASSIGN_TYPED(int_t, ptr, &rnd);
+        vals_t[n]  = rnd;
     }
 }
 
@@ -135,11 +180,11 @@ static void _normal_real(const size_t dim,
                          const double variance,
                          void* v_values)
 {
+    ACCESS_VOID(real_t, vals_t, v_values);
     for (size_t n = 0; n < dim; n++)
     {
         double rnd = PRNG_State_normal(&prng, mean, variance);
-        ACCESS_VOID(real_t, ptr, v_values + n);
-        ASSIGN_TYPED(real_t, ptr, &rnd);
+        vals_t[n]  = rnd;
     }
 }
 
@@ -148,13 +193,13 @@ static void _normal_cmpl(const size_t dim,
                          const double variance,
                          void* v_values)
 {
+    ACCESS_VOID(complex_t, vals_t, v_values);
     for (size_t n = 0; n < dim; n++)
     {
         double a    = PRNG_State_normal(&prng, mean, variance);
         double b    = PRNG_State_normal(&prng, mean, variance);
         complex_t z = a + b * I;
-        ACCESS_VOID(complex_t, ptr, v_values + n);
-        ASSIGN_TYPED(complex_t, ptr, &z);
+        vals_t[n]   = z;
     }
 }
 
@@ -183,11 +228,11 @@ static void _uniform_int(const size_t dim,
                          const double max,
                          void* v_values)
 {
+    ACCESS_VOID(int_t, vals_t, v_values);
     for (size_t n = 0; n < dim; n++)
     {
-        double rnd = PRNG_State_normal(&prng, min, max);
-        ACCESS_VOID(int_t, ptr, v_values + n);
-        ASSIGN_TYPED(int_t, ptr, &rnd);
+        double rnd = PRNG_State_random_double_range(&prng, min, max);
+        vals_t[n]  = rnd;
     }
 }
 
@@ -196,11 +241,11 @@ static void _uniform_real(const size_t dim,
                           const double max,
                           void* v_values)
 {
+    ACCESS_VOID(real_t, vals_t, v_values);
     for (size_t n = 0; n < dim; n++)
     {
-        double rnd = PRNG_State_normal(&prng, min, max);
-        ACCESS_VOID(real_t, ptr, v_values + n);
-        ASSIGN_TYPED(real_t, ptr, &rnd);
+        double rnd = PRNG_State_random_double_range(&prng, min, max);
+        vals_t[n]  = rnd;
     }
 }
 
@@ -209,14 +254,13 @@ static void _uniform_cmpl(const size_t dim,
                           const double max,
                           void* v_values)
 {
+    ACCESS_VOID(complex_t, vals_t, v_values);
     for (size_t n = 0; n < dim; n++)
     {
-        double a    = PRNG_State_normal(&prng, min, max);
-        double b    = PRNG_State_normal(&prng, min, max);
+        double a    = PRNG_State_random_double_range(&prng, min, max);
+        double b    = PRNG_State_random_double_range(&prng, min, max);
         complex_t z = a + b * I;
-
-        ACCESS_VOID(complex_t, ptr, v_values + n);
-        ASSIGN_TYPED(complex_t, ptr, &z);
+        vals_t[n]   = z;
     }
 }
 
@@ -253,12 +297,12 @@ static int _all_close_int_s(const size_t u_dim,
                             const void* u_values,
                             const void* v_values)
 {
+    ACCESS_VOID(int_t, ptr_u, u_values);
+    ACCESS_VOID(int_t, ptr_v, v_values);
     for (size_t n = 0; n < u_dim; n++)
     {
-        ACCESS_VOID(int_t, ptr_u, u_values + n);
-        ACCESS_VOID(int_t, ptr_v, v_values + n);
 
-        if (*ptr_u != *ptr_v)
+        if (ptr_u[n] != ptr_v[n])
         {
             return 0;
         }
@@ -270,12 +314,14 @@ static int _all_close_real_s(const size_t u_dim,
                              const void* u_values,
                              const void* v_values)
 {
+
+    ACCESS_VOID(real_t, ptr_u, u_values);
+    ACCESS_VOID(real_t, ptr_v, v_values);
+
     for (size_t n = 0; n < u_dim; n++)
     {
-        ACCESS_VOID(real_t, ptr_u, u_values + n);
-        ACCESS_VOID(real_t, ptr_v, v_values + n);
 
-        if (fabs(*ptr_u - *ptr_v) > EPS)
+        if (fabs(ptr_u[n] - ptr_v[n]) > EPS)
         {
             return 0;
         }
@@ -287,13 +333,13 @@ static int _all_close_cmpl_s(const size_t u_dim,
                              const void* u_values,
                              const void* v_values)
 {
+    ACCESS_VOID(complex_t, ptr_u, u_values);
+    ACCESS_VOID(complex_t, ptr_v, v_values);
     for (size_t n = 0; n < u_dim; n++)
     {
-        ACCESS_VOID(complex_t, ptr_u, u_values + n);
-        ACCESS_VOID(complex_t, ptr_v, v_values + n);
 
-        if (fabs(creal(*ptr_u) - creal(*ptr_v)) > EPS ||
-            fabs(cimag(*ptr_u) - cimag(*ptr_v)) > EPS)
+        if (fabs(creal(ptr_u[n]) - creal(ptr_v[n])) > EPS ||
+            fabs(cimag(ptr_u[n]) - cimag(ptr_v[n])) > EPS)
         {
             return 0;
         }
@@ -430,6 +476,7 @@ Vector Vector_zeros(const size_t dim, const DataType dt)
         _new_units[dt](dim, res.values, &z);
         res.dim = dim;
     }
+    res.dt = dt;
     return res;
 }
 
@@ -512,17 +559,21 @@ int Vector_get_at(double* target, const Vector* v, const size_t index)
 
 static void _set_at_int(void* target, const void* v_values, const size_t index)
 {
-    ASSIGN_UNTYPED(int_t, target + index, v_values);
+    ACCESS_VOID(int_t, values_t, target);
+    ASSIGN_TYPED(int_t, &values_t[index], v_values);
 }
 
 static void _set_at_real(void* target, const void* v_values, const size_t index)
 {
-    ASSIGN_UNTYPED(real_t, target + index, v_values);
+    ACCESS_VOID(real_t, values_t, target);
+    ASSIGN_TYPED(real_t, &values_t[index], v_values);
 }
 
 static void _set_at_cmpl(void* target, const void* v_values, const size_t index)
 {
-    ASSIGN_UNTYPED(complex_t, target + index, v_values);
+    ACCESS_VOID(complex_t, values_t, target);
+    complex_t* val  = (complex_t*)v_values;
+    values_t[index] = creal(*val) + cimag(*val) * I;
 }
 
 static void (*_set_at_units[TYPE_COUNT])(void* target,
@@ -899,42 +950,50 @@ void Vector_min(void* target, const Vector* v)
 
 static void _insertion_int(void* v_values, ssize_t low, size_t high)
 {
+    ACCESS_VOID(int_t, v_values_t, v_values);
     for (size_t i = low + 1; i <= high; ++i)
     {
-        ACCESS_VOID(int_t, key, v_values + i);
+        // ACCESS_VOID(int_t, key, v_values + i);
+        int_t key = v_values_t[i];
         ssize_t j = i - 1;
-        ACCESS_VOID(int_t, ptr_j, v_values + j);
-        while (j >= low && *ptr_j > *key)
+        // ACCESS_VOID(int_t, ptr_j, v_values + j);
+        int_t ptr_j = v_values_t[j];
+
+        while (j >= low && ptr_j > key)
         {
-            ACCESS_VOID(int_t, ptr_j_1, v_values + j + 1);
-            *ptr_j_1 = *ptr_j;
+            // ACCESS_VOID(int_t, ptr_j_1, v_values + j + 1);
+            int_t ptr_j_1 = v_values_t[j + 1];
+            ptr_j_1       = ptr_j;
             j--;
-            ptr_j = (int_t*)v_values + j;
+            ptr_j = v_values_t[j];
         }
     }
 }
 
 static void _insertion_real(void* v_values, ssize_t low, size_t high)
 {
+    ACCESS_VOID(real_t, v_values_t, v_values);
     for (size_t i = low + 1; i <= high; ++i)
     {
-        ACCESS_VOID(real_t, key, v_values + i);
-        ssize_t j = i - 1;
-        ACCESS_VOID(real_t, ptr_j, v_values + j);
-        while (j >= low && *ptr_j > *key)
+        real_t key   = v_values_t[i];
+        ssize_t j    = i - 1;
+        real_t ptr_j = v_values_t[j];
+        while (j >= low && ptr_j > key)
         {
-            ACCESS_VOID(real_t, ptr_j_1, v_values + j + 1);
-            *ptr_j_1 = *ptr_j;
+            real_t ptr_j_1 = v_values_t[j + 1];
+            ptr_j_1        = ptr_j;
             j--;
-            ptr_j = (real_t*)v_values + j;
+            ptr_j = v_values_t[j];
         }
     }
 }
 
-static void (*_insertion_units[TYPE_COUNT])(
-  void* v_values,
-  ssize_t low,
-  size_t high) = { [Int] = _insertion_int, [Real] = _insertion_real };
+static void (*_insertion_units[TYPE_COUNT])(void* v_values,
+                                            ssize_t low,
+                                            size_t high) = {
+    [Int]  = _insertion_int,
+    [Real] = _insertion_real,
+};
 
 static void _insertion_sort(Vector* v, ssize_t low, size_t high)
 {
@@ -943,20 +1002,18 @@ static void _insertion_sort(Vector* v, ssize_t low, size_t high)
 
 static void _swap_int(void* v_values, const size_t i, const size_t j)
 {
-    ACCESS_VOID(int_t, tmp, v_values + i);
-    ACCESS_VOID(int_t, v_i, v_values + i);
-    ACCESS_VOID(int_t, v_j, v_values + j);
-    *v_i = *v_j;
-    *v_j = *tmp;
+    ACCESS_VOID(int_t, v_values_t, v_values);
+    int_t tmp     = v_values_t[i];
+    v_values_t[i] = v_values_t[j];
+    v_values_t[j] = tmp;
 }
 
 static void _swap_real(void* v_values, const size_t i, const size_t j)
 {
-    ACCESS_VOID(real_t, tmp, v_values + i);
-    ACCESS_VOID(real_t, v_i, v_values + i);
-    ACCESS_VOID(real_t, v_j, v_values + j);
-    *v_i = *v_j;
-    *v_j = *tmp;
+    ACCESS_VOID(real_t, v_values_t, v_values);
+    real_t tmp    = v_values_t[i];
+    v_values_t[i] = v_values_t[j];
+    v_values_t[j] = tmp;
 }
 
 static void (*_swap_units[3])(void* v_values,
@@ -976,18 +1033,20 @@ static void _heapify_int(void* v_values,
                          ssize_t low,
                          size_t* largest)
 {
-    ACCESS_VOID(int_t, val_low_l, v_values + low + l);
-    ACCESS_VOID(int_t, val_low_lar, v_values + low + *largest);
-    ACCESS_VOID(int_t, val_low_r, v_values + low + r);
-    if (l < n && *val_low_l > *val_low_lar)
+    ACCESS_VOID(int_t, v_values_t, v_values);
+    int_t val_low_l   = v_values_t[low + l];
+    int_t val_low_lar = v_values_t[low + *largest];
+    int_t val_low_r   = v_values_t[low + r];
+    if (l < n && val_low_l > val_low_lar)
     {
         *largest = l;
     }
-    if (r < n && *val_low_r > *val_low_lar)
+    if (r < n && val_low_r > val_low_lar)
     {
         *largest = r;
     }
 }
+
 static void _heapify_real(void* v_values,
                           size_t l,
                           size_t n,
@@ -995,14 +1054,17 @@ static void _heapify_real(void* v_values,
                           ssize_t low,
                           size_t* largest)
 {
-    ACCESS_VOID(real_t, val_low_l, v_values + low + l);
-    ACCESS_VOID(real_t, val_low_lar, v_values + low + *largest);
-    ACCESS_VOID(real_t, val_low_r, v_values + low + r);
-    if (l < n && *val_low_l > *val_low_lar)
+
+    ACCESS_VOID(real_t, v_values_t, v_values);
+    real_t val_low_l   = v_values_t[low + l];
+    real_t val_low_lar = v_values_t[low + *largest];
+    real_t val_low_r   = v_values_t[low + r];
+
+    if (l < n && val_low_l > val_low_lar)
     {
         *largest = l;
     }
-    if (r < n && *val_low_r > *val_low_lar)
+    if (r < n && val_low_r > val_low_lar)
     {
         *largest = r;
     }
@@ -1052,13 +1114,13 @@ static void _heapsort(Vector* v, ssize_t low, size_t high)
 
 static void _part_int(Vector* v, size_t* i, ssize_t low, size_t high)
 {
-    ACCESS_VOID(int_t, pivot, v->values + high);
-    *i = low - 1;
+    ACCESS_VOID(int_t, v_values, v->values);
+    int_t pivot = v_values[high];
+    *i          = low - 1;
 
     for (size_t j = low; j <= high - 1; j++)
     {
-        ACCESS_VOID(int_t, v_j, v->values + j);
-        if (*v_j < *pivot)
+        if (v_values[j] < pivot)
         {
             i++;
             _swap(v, *i, j);
@@ -1068,13 +1130,13 @@ static void _part_int(Vector* v, size_t* i, ssize_t low, size_t high)
 
 static void _part_real(Vector* v, size_t* i, ssize_t low, size_t high)
 {
-    ACCESS_VOID(real_t, pivot, v->values + high);
-    *i = low - 1;
+    ACCESS_VOID(real_t, v_values, v->values);
+    real_t pivot = v_values[high];
+    *i           = low - 1;
 
     for (size_t j = low; j <= high - 1; j++)
     {
-        ACCESS_VOID(real_t, v_j, v->values + j);
-        if (*v_j < *pivot)
+        if (v_values[j] < pivot)
         {
             i++;
             _swap(v, *i, j);
