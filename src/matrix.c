@@ -317,13 +317,14 @@ Matrix Matrix_new_random_symmetric(const size_t n, DataType dt)
     memset(M.values, 0, n * n * _elem_size(dt));
     Matrix tmp = Matrix_zeros_like(&M, dt);
 
-    Vector v = Vector_zeros(0);
+    Vector v = Vector_zeros(0, dt);
 
     for (size_t i = 0; i < n; i++)
     {
-        v             = Vector_new_random_normal(n, 0, 1);
+        v             = Vector_new_random_normal(n, 0, 1, dt);
         double norm_v = 1. / Vector_norm(&v);
-        Vector_scale(&v, norm_v);
+
+        Vector_scale(&v, &norm_v);
         Matrix_Vector_outer(&tmp, &v, &v);
         Matrix_add(&M, &tmp);
 
@@ -971,7 +972,7 @@ static void (*_frobenius_helpers[TYPE_COUNT])(void* target, const Matrix* M) = {
 
 static void _spectral_helper(void* target, const Matrix* M)
 {
-    Vector eigvals = Vector_zeros(M->n);
+    Vector eigvals = Vector_zeros(M->n, M->dt);
     Matrix_eigvals(&eigvals, M, true);
     // TODO: correct eigval logic
     void* eig_ptr     = eigvals.values + M->n - 1;
@@ -993,7 +994,7 @@ void Matrix_norm(void* target, const Matrix* M, NormType nt)
         }
         case SPECTRAL:
         {
-            _spectral_helper(target, M);
+            //_spectral_helper(target, M);
             break;
         }
         default:
@@ -1214,7 +1215,7 @@ static int _invert_n_n_matrix(Matrix* target, const Matrix* M)
     Matrix_copy(&M_copy, M);
 
     // Initialize target as identity
-    Vector ones = Vector_new(n, 1.0);
+    Vector ones = Vector_ones(n, M->dt);
     Matrix tmp  = Matrix_diag(&ones);
     Matrix_free(target);
     *target = tmp;
@@ -1527,7 +1528,7 @@ int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
     }
     const size_t DIM = M->m;
     const size_t N   = M->n;
-    Vector_prepare_target(target, DIM);
+    Vector_prepare_target(target, DIM, M->dt);
     double* restrict M_values      = M->values;
     double* restrict v_values      = v->values;
     double* restrict target_values = target->values;
@@ -1588,38 +1589,278 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
     return MATRIX_SUCCESS;
 }
 
-int Matrix_jacobi(Matrix* target, const Vector* x, Vector (*f)(const Vector* x))
+static void _jacobi_real(Matrix* target,
+                         const size_t N,
+                         const size_t M,
+                         Vector* x_eps,
+                         Vector* f_x_eps,
+                         const Vector* f_x,
+                         Vector (*f)(const Vector*))
 {
-    const Vector f_x = f(x);
-    const size_t M   = f_x.dim;
-    const size_t N   = x->dim;
-    Vector f_x_eps   = Vector_zeros(M);
-    Matrix_prepare_target(target, M, N, x->dt);
-    Vector x_eps = Vector_zeros_like(x);
-    Vector_copy(&x_eps, x);
-    double fn_x, fn_x_eps;
+    real_t* x_eps_values = x_eps->values;
+
+    real_t fn_x, fn_x_eps;
+    for (size_t m = 0; m < M; m++)
+    {
+        for (size_t n = 0; n < N; n++)
+        {
+            x_eps_values[n] += MATRIX_EPS;
+            *f_x_eps = f(x_eps);
+            x_eps_values[n] -= MATRIX_EPS;
+            ASSIGN_TYPED(real_t, &fn_x, f_x->values + m);
+            ASSIGN_TYPED(real_t, &fn_x_eps, f_x_eps->values + m);
+
+            real_t value = (fn_x_eps - fn_x) / MATRIX_EPS;
+            memcpy(target->values + m * target->n + n, &value, elem_size(Real));
+        }
+    }
+}
+
+static void _jacobi_cmpl(Matrix* target,
+                         const size_t M,
+                         const size_t N,
+                         Vector* x_eps,
+                         Vector* f_x_eps,
+                         const Vector* f_x,
+                         Vector (*f)(const Vector*))
+{
+    complex_t* x_eps_values = x_eps->values;
+    complex_t fn_x, fn_x_eps;
 
     for (size_t m = 0; m < M; m++)
     {
         for (size_t n = 0; n < N; n++)
         {
-            x_eps.values[n] += MATRIX_EPS;
-            f_x_eps = f(&x_eps);
-            x_eps.values[n] -= MATRIX_EPS;
-            fn_x     = f_x.values[m];
-            fn_x_eps = f_x_eps.values[m];
+            x_eps_values[n] += MATRIX_EPS + MATRIX_EPS * I;
+            *f_x_eps = f(x_eps);
+            x_eps_values[n] -= MATRIX_EPS + MATRIX_EPS * I;
+            ASSIGN_TYPED(complex_t, &fn_x, f_x->values + m);
+            ASSIGN_TYPED(complex_t, &fn_x_eps, f_x_eps->values + m);
 
-            double value = (fn_x_eps - fn_x) / MATRIX_EPS;
+            real_t value = (fn_x_eps - fn_x) / MATRIX_EPS;
             memcpy(
-              target->values + m * target->n + n, &value, _elem_size(Real));
-
-            // target->values[m * target->n + n] = (fn_x_eps - fn_x) /
-            // MATRIX_EPS;
+              target->values + m * target->n + n, &value, elem_size(Complex));
         }
     }
+}
+
+static void (*_jacobi_workers[TYPE_COUNT])(Matrix* target,
+                                           const size_t N,
+                                           const size_t M,
+                                           Vector* x_eps,
+                                           Vector* f_x_eps,
+                                           const Vector* f_x,
+                                           Vector (*f)(const Vector*)) = {
+    [Real]    = _jacobi_real,
+    [Complex] = _jacobi_cmpl,
+};
+
+int Matrix_jacobi(Matrix* target, const Vector* x, Vector (*f)(const Vector* x))
+{
+    const Vector f_x = f(x);
+    const size_t M   = f_x.dim;
+    const size_t N   = x->dim;
+    Vector f_x_eps   = Vector_zeros(M, x->dt);
+    Matrix_prepare_target(target, M, N, x->dt);
+    Vector x_eps = Vector_zeros_like(x);
+    Vector_copy(&x_eps, x);
+
+    _jacobi_workers[f_x.dt](target, M, N, &x_eps, &f_x_eps, &f_x, f);
 
     return MATRIX_SUCCESS;
 }
+
+static void _solve_mv_p1_real(Vector* target,
+                              const Matrix* M,
+                              const Vector* v,
+                              void* ptr,
+                              Matrix* M_copy)
+{
+    ACCESS_VOID(real_t, target_values, target->values);
+    for (size_t m = 0; m < M->m; m++)
+    {
+        ptr           = M_copy->values + m * M_copy->n + m;
+        real_t lambda = 1.0 / *(real_t*)ptr;
+        ACCESS_VOID(real_t, row_vals, M_copy->values + m * M_copy->n);
+        Vector row = Vector_new_vals(M->n, row_vals, M_copy->dt);
+        Vector_scale(&row, &lambda);
+        memcpy(M_copy->values + m * M_copy->n,
+               row.values,
+               M_copy->n * elem_size(Real));
+
+        target_values[m] *= lambda;
+        real_t target_val = target_values[m];
+
+        for (size_t n = m + 1; n < M->m; n++)
+        {
+            // ptr = M_copy->values + n * M_copy->n + m;
+
+            ASSIGN_TYPED(real_t, &lambda, M_copy->values + n * M_copy->n + m);
+            Vector_scale(&row, &lambda);
+            target_val *= lambda;
+            row_vals     = M_copy->values + n * M->n;
+            Vector row_n = Vector_new_vals(M_copy->n, row_vals, Real);
+            Vector_sub(&row_n, &row);
+
+            memcpy(M_copy->values + n * M_copy->n,
+                   row_n.values,
+                   M->n * elem_size(Real));
+            target_values[n] -= target_val;
+            real_t lambda_inv = 1.0 / lambda;
+
+            Vector_scale(&row, &lambda_inv);
+            target_val *= lambda_inv;
+
+            Vector_free(&row_n);
+        }
+        Vector_free(&row);
+    }
+}
+
+static void _solve_mv_p1_cmpl(Vector* target,
+                              const Matrix* M,
+                              const Vector* v,
+                              void* ptr,
+                              Matrix* M_copy)
+{
+    ACCESS_VOID(complex_t, target_values, target->values);
+    for (size_t m = 0; m < M->m; m++)
+    {
+        ptr              = M_copy->values + m * M_copy->n + m;
+        complex_t lambda = 1.0 / *(real_t*)ptr;
+        ACCESS_VOID(complex_t, row_vals, M_copy->values + m * M_copy->n);
+        Vector row = Vector_new_vals(M->n, row_vals, M_copy->dt);
+        Vector_scale(&row, &lambda);
+        memcpy(M_copy->values + m * M_copy->n,
+               row.values,
+               M_copy->n * elem_size(Complex));
+
+        target_values[m] *= lambda;
+        complex_t target_val = target_values[m];
+
+        for (size_t n = m + 1; n < M->m; n++)
+        {
+            ptr = M_copy->values + n * M_copy->n + m;
+
+            ASSIGN_TYPED(
+              complex_t, &lambda, M_copy->values + n * M_copy->n + m);
+            Vector_scale(&row, &lambda);
+            target_val *= lambda;
+            row_vals     = M_copy->values + n * M->n;
+            Vector row_n = Vector_new_vals(M_copy->n, row_vals, Complex);
+            Vector_sub(&row_n, &row);
+
+            memcpy(M_copy->values + n * M_copy->n,
+                   row_n.values,
+                   M->n * elem_size(Complex));
+            target_values[n] -= target_val;
+            complex_t lambda_inv = 1.0 / lambda;
+
+            Vector_scale(&row, &lambda_inv);
+            target_val *= lambda_inv;
+
+            Vector_free(&row_n);
+        }
+        Vector_free(&row);
+    }
+}
+
+static void (*_solve_mv_p1_units[TYPE_COUNT])(Vector* target,
+                                              const Matrix* M,
+                                              const Vector* v,
+                                              void* ptr,
+                                              Matrix* M_copy) = {
+    [Real]    = _solve_mv_p1_real,
+    [Complex] = _solve_mv_p1_cmpl,
+};
+
+static void _solve_mv_p2_real(Vector* target,
+                              const Matrix* M,
+                              const Vector* v,
+                              void* ptr,
+                              Matrix* M_copy)
+{
+    ACCESS_VOID(real_t, target_values, target->values);
+    for (long m = M_copy->m - 1; m >= 0; m--)
+    {
+        real_t lambda;
+        ACCESS_VOID(real_t, row_vals, M_copy->values + m * M_copy->n);
+
+        Vector row        = Vector_new_vals(M->n, row_vals, M_copy->dt);
+        real_t target_val = target_values[m];
+        for (long n = m - 1; n >= 0; n--)
+        {
+            ptr = M_copy->values + n * M_copy->n + m;
+            ASSIGN_TYPED(real_t, &lambda, M_copy->values + n * M_copy->n + m);
+            Vector_scale(&row, &lambda);
+            target_val *= lambda;
+
+            row_vals     = (real_t*)M_copy->values + n * M->n;
+            Vector row_n = Vector_new_vals(M_copy->n, row_vals, M_copy->dt);
+            Vector_sub(&row_n, &row);
+            memcpy(M_copy->values + n * M_copy->n,
+                   row_n.values,
+                   M_copy->n * elem_size(Real));
+            target_values[n] -= target_val;
+            real_t lambda_inv = 1.0 / lambda;
+
+            Vector_scale(&row, &lambda_inv);
+            target_val /= lambda;
+
+            Vector_free(&row_n);
+        }
+        Vector_free(&row);
+    }
+}
+
+static void _solve_mv_p2_cmpl(Vector* target,
+                              const Matrix* M,
+                              const Vector* v,
+                              void* ptr,
+                              Matrix* M_copy)
+{
+    ACCESS_VOID(complex_t, target_values, target->values);
+    for (long m = M_copy->m - 1; m >= 0; m--)
+    {
+        complex_t lambda;
+        ACCESS_VOID(complex_t, row_vals, M_copy->values + m * M_copy->n);
+
+        Vector row           = Vector_new_vals(M->n, row_vals, M_copy->dt);
+        complex_t target_val = target_values[m];
+        for (long n = m - 1; n >= 0; n--)
+        {
+            ptr = M_copy->values + n * M_copy->n + m;
+            ASSIGN_TYPED(
+              complex_t, &lambda, M_copy->values + n * M_copy->n + m);
+            Vector_scale(&row, &lambda);
+            target_val *= lambda;
+
+            row_vals     = (complex_t*)M_copy->values + n * M->n;
+            Vector row_n = Vector_new_vals(M_copy->n, row_vals, M_copy->dt);
+            Vector_sub(&row_n, &row);
+            memcpy(M_copy->values + n * M_copy->n,
+                   row_n.values,
+                   M_copy->n * elem_size(Complex));
+            target_values[n] -= target_val;
+            complex_t lambda_inv = 1.0 / lambda;
+
+            Vector_scale(&row, &lambda_inv);
+            target_val /= lambda;
+
+            Vector_free(&row_n);
+        }
+        Vector_free(&row);
+    }
+}
+
+static void (*_solve_mv_p2_units[TYPE_COUNT])(Vector* target,
+                                              const Matrix* M,
+                                              const Vector* v,
+                                              void* ptr,
+                                              Matrix* M_copy) = {
+    [Real]    = _solve_mv_p2_real,
+    [Complex] = _solve_mv_p2_cmpl,
+};
 
 int Matrix_Vector_solve(Vector* target, const Matrix* M, const Vector* v)
 {
@@ -1634,74 +1875,12 @@ int Matrix_Vector_solve(Vector* target, const Matrix* M, const Vector* v)
     void* ptr = NULL;
 
     // Phase one
-    // TODO: generalize, just making it compile now
-    for (size_t m = 0; m < M->m; m++)
-    {
-        ptr              = M_copy.values + m * M_copy.n + m;
-        double lambda    = 1.0 / *(double*)ptr;
-        double* row_vals = M_copy.values + m * M_copy.n;
-        Vector row       = Vector_new_vals(M->n, row_vals);
-        Vector_scale(&row, lambda);
-        memcpy(
-          M_copy.values + m * M_copy.n, row.values, M_copy.n * sizeof(double));
-
-        target->values[m] *= lambda;
-        double target_val = target->values[m];
-
-        for (size_t n = m + 1; n < M->m; n++)
-        {
-            ptr = M_copy.values + n * M_copy.n + m;
-            // double* l_ptr = (double*)ptr;
-
-            lambda = *(double*)ptr;
-            Vector_scale(&row, lambda);
-            target_val *= lambda;
-            row_vals     = M_copy.values + n * M->n;
-            Vector row_n = Vector_new_vals(M_copy.n, row_vals);
-            Vector_sub(&row_n, &row);
-
-            memcpy(M_copy.values + n * M_copy.n,
-                   row_n.values,
-                   M->n * sizeof(double));
-            target->values[n] -= target_val;
-
-            Vector_scale(&row, 1 / lambda);
-            target_val /= lambda;
-
-            Vector_free(&row_n);
-        }
-        Vector_free(&row);
-    }
+    DataType dt = MAX(M->dt, v->dt);
+    _solve_mv_p1_units[dt](target, M, v, ptr, &M_copy);
 
     // Phase two
-    for (long m = M_copy.m - 1; m >= 0; m--)
-    {
-        double lambda;
-        double* row_vals  = M_copy.values + m * M_copy.n;
-        Vector row        = Vector_new_vals(M->n, row_vals);
-        double target_val = target->values[m];
-        for (long n = m - 1; n >= 0; n--)
-        {
-            ptr    = M_copy.values + n * M_copy.n + m;
-            lambda = *(double*)ptr;
-            Vector_scale(&row, lambda);
-            target_val *= lambda;
+    _solve_mv_p2_units[dt](target, M, v, ptr, &M_copy);
 
-            row_vals     = M_copy.values + n * M->n;
-            Vector row_n = Vector_new_vals(M_copy.n, row_vals);
-            Vector_sub(&row_n, &row);
-            memcpy(M_copy.values + n * M_copy.n,
-                   row_n.values,
-                   M_copy.n * sizeof(double));
-            target->values[n] -= target_val;
-
-            Vector_scale(&row, 1 / lambda);
-            target_val /= lambda;
-
-            Vector_free(&row_n);
-        }
-        Vector_free(&row);
-    }
     Matrix_free(&M_copy);
     return MATRIX_SUCCESS;
 }
@@ -1784,360 +1963,453 @@ int Matrix_Matrix_dot_jordan(Matrix* target, const Matrix* M1, const Matrix* M2)
     return MATRIX_SUCCESS;
 }
 
-int Matrix_QR(Matrix* Q, Matrix* R, const Matrix* A)
+// int Matrix_QR(Matrix* Q, Matrix* R, const Matrix* A)
+// {
+//     size_t m = A->m;
+//     size_t n = A->n;
+//     Matrix_copy(R, A);
+//     complex double* ones = malloc(A->n * elem_size(Complex));
+//     Matrix Unit          = Matrix_diag_val(A->n, ones, Complex);
+//     free(ones);
+//     Matrix_copy(Q, &Unit);
+//     Matrix_free(&Unit);
+//
+//     for (size_t k = 0; k < A->n; k++)
+//     {
+//         size_t rows = m - k;
+//
+//         Vector x = Vector_zeros(rows, Real);
+//         for (size_t i = 0; i < rows; i++)
+//         {
+//             void* R_ptr   = R->values + (k + i) * n + k;
+//             void* x_ptr   = x.values + i;
+//             double* R_val = (double*)R_ptr;
+//             // x.values[i]   = R->values[(k + i) * n + k];
+//             memcpy(x_ptr, R_val, elem_size(Real));
+//         }
+//
+//         double norm_x = Vector_norm(&x);
+//
+//         double sign   = (x.values[0] >= 0 ? 1 : -1);
+//
+//         Vector e1    = Vector_zeros(rows, Real);
+//         e1.values[0] = 1;
+//
+//         Vector v = Vector_zeros_like(&x);
+//         Vector_copy(&v, &x);
+//         Vector_scale(&e1, sign * norm_x);
+//         Vector_add(&v, &e1);
+//
+//         Vector_free(&e1);
+//         Vector_scale(&v, 1.0 / Vector_norm(&v));
+//
+//         for (size_t j = k; j < n; j++)
+//         {
+//             double dot = 0.0;
+//             for (size_t i = 0; i < rows; i++)
+//             {
+//                 double* v_ptr = v.values + i;
+//                 double* R_ptr = R->values + (k + i) * n + k;
+//                 dot += *v_ptr * *R_ptr;
+//             }
+//             for (size_t i = 0; i < rows; i++)
+//             {
+//                 double* v_val = (double*)v.values + i;
+//                 double* R_val = (double*)R->values + (k + i) * n + k;
+//                 *R_val -= *v_val;
+//                 // R->values[(k + i) * n + j] -= 2 * v.values[i] * dot;
+//             }
+//         }
+//
+//         for (size_t i = 0; i < m; i++)
+//         {
+//             double dot = 0.0;
+//             for (size_t r = 0; r < rows; r++)
+//             {
+//                 double* Q_val = Q->values + i * n + (k + r);
+//                 double* v_val = v.values + r;
+//                 dot += *Q_val * *v_val;
+//             }
+//
+//             for (size_t r = 0; r < rows; r++)
+//             {
+//                 double* Q_val = Q->values + i * n + (k + r);
+//                 double* v_val = v.values + r;
+//                 *Q_val -= 2 * dot * *v_val;
+//                 // Q->values[i * n + (k + r)] -= 2 * dot * v.values[r];
+//             }
+//         }
+//         Vector_free(&v);
+//         Vector_free(&x);
+//     }
+//
+//     return MATRIX_SUCCESS;
+// }
+//
+// void _Matrix_Matrix_dot_active_raw(double* restrict H_values,
+//                                    const double* restrict R_values,
+//                                    const double* restrict Q_values,
+//                                    const size_t active,
+//                                    const size_t m,
+//                                    const size_t n)
+// {
+//     double* tmp_values = NULL;
+//     posix_memalign((void**)&tmp_values, 32, m * n * sizeof(double));
+//
+//     for (size_t i = 0; i < active; i++)
+//     {
+// #pragma omp simd aligned(R_values, Q_values : 32)
+//         for (size_t j = 0; j < active; j++)
+//         {
+//             double sum = 0.0;
+//             for (size_t k = 0; k < active; k++)
+//                 sum += R_values[i * n + k] * Q_values[k * n + j];
+//
+//             tmp_values[i * n + j] = sum;
+//         }
+//     }
+//
+//     // Copy back only active block
+// #pragma omp simd aligned(H_values, tmp_values : 32)
+//     for (size_t i = 0; i < active; i++)
+//         for (size_t j = 0; j < active; j++)
+//             H_values[i * n + j] = tmp_values[i * n + j];
+//
+//     free(tmp_values);
+// }
+//
+// void _Matrix_QR_hessenberg_raw(double* restrict Q_values,
+//                                double* restrict R_values,
+//                                double* restrict H_values,
+//                                size_t active,
+//                                const size_t n)
+// {
+//     for (size_t i = 0; i < n; i++)
+//     {
+//         for (size_t j = 0; j < n; j++)
+//         {
+//             Q_values[i * n + j] = (i == j ? 1.0 : 0.0);
+//         }
+//     }
+//     memcpy(R_values, H_values, n * n * sizeof(double));
+//     for (size_t i = 0; i < active - 1; i++)
+//     {
+//         double a = R_values[i * n + i];
+//         double b = R_values[(i + 1) * n + i];
+//
+//         if (fabs(b) < 1e-15)
+//         {
+//             continue;
+//         }
+//
+//         double r = hypot(a, b);
+//         double c = a / r;
+//         double s = -b / r;
+// #pragma omp simd aligned(R_values : 32)
+//         for (size_t j = i; j < active; j++)
+//         {
+//             double t1                 = R_values[i * n + j];
+//             double t2                 = R_values[(i + 1) * n + j];
+//             R_values[i * n + j]       = c * t1 - s * t2;
+//             R_values[(i + 1) * n + j] = s * t1 + c * t2;
+//         }
+//
+// #pragma omp simd aligned(Q_values : 32)
+//         for (size_t j = 0; j < active; j++)
+//         {
+//             double t1                 = Q_values[j * n + i];
+//             double t2                 = Q_values[j * n + (i + 1)];
+//             Q_values[j * n + i]       = c * t1 - s * t2;
+//             Q_values[j * n + (i + 1)] = s * t1 + c * t2;
+//         }
+//     }
+// }
+//
+// int _eigvals_two(Vector* eigenvalues, const Matrix* M)
+// {
+//     const double* a = M->values + 0;
+//     const double* b = M->values + 1;
+//     const double* c = M->values + 2;
+//     const double* d = M->values + 3;
+//
+//     const double p     = -(*a + *d);
+//     const double q     = *a * *d - *b * *c;
+//     const double inner = 0.25 * p * p - q;
+//     Vector_prepare_target(eigenvalues, 2);
+//     if (inner < 0.0)
+//     {
+//         Log_log("complex eigenvalues encountered", LOG_RT_WARNING);
+//         return MATRIX_MATH_ERROR;
+//     }
+//
+//     const double x1        = -p * 0.5 - sqrt(inner);
+//     const double x2        = -p * 0.5 + sqrt(inner);
+//     eigenvalues->values[0] = x1;
+//     eigenvalues->values[1] = x2;
+//     return MATRIX_SUCCESS;
+// }
+//
+// double _wilkinson_shift(const Matrix* H, size_t active)
+// {
+//     size_t n = H->n;
+//
+//     double* a = H->values + (active - 2) * n + (active - 2);
+//     double* b = H->values + (active - 2) * n + (active - 1);
+//     double* c = H->values + (active - 1) * n + (active - 2);
+//     double* d = H->values + (active - 1) * n + (active - 1);
+//
+//     double tr        = (*a + *d) * 0.5;
+//     double det       = (*a - *d) * 0.5;
+//     double disc_term = det * det + *b * *c;
+//     if (disc_term < 0.0)
+//     {
+//         disc_term = 0.0;
+//     }
+//     double disc = sqrt(disc_term);
+//
+//     double lambda1 = tr + disc;
+//     double lambda2 = tr - disc;
+//
+//     return (fabs(lambda1 - *d) < fabs(lambda2 - *d)) ? lambda1 : lambda2;
+// }
+//
+// int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
+// {
+//     const size_t max_iters = 10000;
+//     const double eps       = 1e-12;
+//
+//     Matrix H = Matrix_zeros_like(M, Complex);
+//     Matrix_Hessenberg(&H, M); // Q^T M Q → upper Hessenberg
+//     Matrix Q;
+//     Q.m      = H.m;
+//     Q.n      = H.n;
+//     Q.values = NULL;
+//     posix_memalign((void**)&Q.values, 32, Q.m * Q.n * sizeof(double));
+//
+//     Matrix R;
+//     R.m      = H.m;
+//     R.n      = H.n;
+//     R.values = NULL;
+//     posix_memalign((void**)&R.values, 32, Q.m * Q.n * sizeof(double));
+//
+//     size_t n      = H.n;
+//     size_t active = n;
+//
+//     size_t total_iters        = 0;
+//     double* restrict H_values = H.values;
+//     double* restrict Q_values = Q.values;
+//     double* restrict R_values = R.values;
+//
+//     while (active > 1)
+//     {
+//         for (size_t iter = 0; iter < max_iters; iter++)
+//         {
+//             total_iters++;
+//             double sub = fabs(H_values[(active - 1) * n + (active - 2)]);
+//
+//             if (sub < eps)
+//             {
+//                 break;
+//             }
+//
+//             double mu = _wilkinson_shift(&H, active);
+//
+// #pragma omp simd
+//             for (size_t i = 0; i < active; i++)
+//             {
+//                 // H.values[i * n + i] -= mu;
+//                 H_values[i * n + i] -= mu;
+//             }
+//             // Matrix_QR_hessenberg(&Q, &R, &H, active);
+//             _Matrix_QR_hessenberg_raw(
+//               Q_values, R_values, H_values, active, Q.n);
+//             // Matrix_Matrix_dot_active(&H, &R, &Q, active);
+//             _Matrix_Matrix_dot_active_raw(
+//               H_values, R_values, Q_values, active, H.m, H.n);
+//
+// #pragma omp simd
+//             for (size_t i = 0; i < active; i++)
+//             {
+//                 H_values[i * n + i] += mu;
+//             }
+//             bool converged = true;
+//             for (size_t i = 0; i < active - 1; i++)
+//             {
+//                 if (fabs(H_values[(i + 1) * n + i]) > eps)
+//                 {
+//                     converged = false;
+//                     break;
+//                 }
+//             }
+//             if (converged)
+//             {
+//                 break;
+//             }
+//         }
+//
+//         if (fabs(H_values[(active - 1) * n + (active - 2)]) < eps)
+//         {
+//             active--;
+//             continue;
+//         }
+//         else
+//         {
+//             break;
+//         }
+//     }
+//     Vector_prepare_target(eigenvalues, n);
+// #pragma omp simd
+//     for (size_t i = 0; i < n; i++)
+//     {
+//         eigenvalues->values[i] = H_values[i * n + i];
+//     }
+//     if (sort)
+//     {
+//         Vector_sort_inplace(eigenvalues);
+//     }
+//
+//     Matrix_free(&Q);
+//     Matrix_free(&R);
+//     Matrix_free(&H);
+//
+//     return MATRIX_SUCCESS;
+// }
+//
+// int Matrix_eigvals(Vector* eigenvalues, const Matrix* M, bool sort)
+// {
+//     if (M->n == 2)
+//     {
+//         return _eigvals_two(eigenvalues, M);
+//     }
+//
+//     return _eigvals_big(eigenvalues, M, sort);
+// }
+
+static void _outer_int_s(Matrix* target, const Vector* a, const Vector* b)
 {
-    size_t m = A->m;
-    size_t n = A->n;
-    Matrix_copy(R, A);
-    complex double* ones = malloc(A->n * _elem_size(Complex));
-    Matrix Unit          = Matrix_diag_val(A->n, ones, Complex);
-    free(ones);
-    Matrix_copy(Q, &Unit);
-    Matrix_free(&Unit);
+    ACCESS_VOID(int_t, a_values, a);
+    ACCESS_VOID(int_t, b_values, b);
 
-    for (size_t k = 0; k < A->n; k++)
-    {
-        size_t rows = m - k;
-
-        Vector x = Vector_zeros(rows);
-        for (size_t i = 0; i < rows; i++)
-        {
-            void* R_ptr   = R->values + (k + i) * n + k;
-            void* x_ptr   = x.values + i;
-            double* R_val = (double*)R_ptr;
-            // x.values[i]   = R->values[(k + i) * n + k];
-            memcpy(x_ptr, R_val, _elem_size(Real));
-        }
-
-        double norm_x = Vector_norm(&x);
-        double sign   = (x.values[0] >= 0 ? 1 : -1);
-
-        Vector e1    = Vector_zeros(rows);
-        e1.values[0] = 1;
-
-        Vector v = Vector_zeros_like(&x);
-        Vector_copy(&v, &x);
-        Vector_scale(&e1, sign * norm_x);
-        Vector_add(&v, &e1);
-
-        Vector_free(&e1);
-        Vector_scale(&v, 1.0 / Vector_norm(&v));
-
-        for (size_t j = k; j < n; j++)
-        {
-            double dot = 0.0;
-            for (size_t i = 0; i < rows; i++)
-            {
-                double* v_ptr = v.values + i;
-                double* R_ptr = R->values + (k + i) * n + k;
-                dot += *v_ptr * *R_ptr;
-            }
-            for (size_t i = 0; i < rows; i++)
-            {
-                double* v_val = (double*)v.values + i;
-                double* R_val = (double*)R->values + (k + i) * n + k;
-                *R_val -= *v_val;
-                // R->values[(k + i) * n + j] -= 2 * v.values[i] * dot;
-            }
-        }
-
-        for (size_t i = 0; i < m; i++)
-        {
-            double dot = 0.0;
-            for (size_t r = 0; r < rows; r++)
-            {
-                double* Q_val = Q->values + i * n + (k + r);
-                double* v_val = v.values + r;
-                dot += *Q_val * *v_val;
-            }
-
-            for (size_t r = 0; r < rows; r++)
-            {
-                double* Q_val = Q->values + i * n + (k + r);
-                double* v_val = v.values + r;
-                *Q_val -= 2 * dot * *v_val;
-                // Q->values[i * n + (k + r)] -= 2 * dot * v.values[r];
-            }
-        }
-        Vector_free(&v);
-        Vector_free(&x);
-    }
-
-    return MATRIX_SUCCESS;
-}
-
-void _Matrix_Matrix_dot_active_raw(double* restrict H_values,
-                                   const double* restrict R_values,
-                                   const double* restrict Q_values,
-                                   const size_t active,
-                                   const size_t m,
-                                   const size_t n)
-{
-    double* tmp_values = NULL;
-    posix_memalign((void**)&tmp_values, 32, m * n * sizeof(double));
-
-    for (size_t i = 0; i < active; i++)
-    {
-#pragma omp simd aligned(R_values, Q_values : 32)
-        for (size_t j = 0; j < active; j++)
-        {
-            double sum = 0.0;
-            for (size_t k = 0; k < active; k++)
-                sum += R_values[i * n + k] * Q_values[k * n + j];
-
-            tmp_values[i * n + j] = sum;
-        }
-    }
-
-    // Copy back only active block
-#pragma omp simd aligned(H_values, tmp_values : 32)
-    for (size_t i = 0; i < active; i++)
-        for (size_t j = 0; j < active; j++)
-            H_values[i * n + j] = tmp_values[i * n + j];
-
-    free(tmp_values);
-}
-
-void _Matrix_QR_hessenberg_raw(double* restrict Q_values,
-                               double* restrict R_values,
-                               double* restrict H_values,
-                               size_t active,
-                               const size_t n)
-{
-    for (size_t i = 0; i < n; i++)
-    {
-        for (size_t j = 0; j < n; j++)
-        {
-            Q_values[i * n + j] = (i == j ? 1.0 : 0.0);
-        }
-    }
-    memcpy(R_values, H_values, n * n * sizeof(double));
-    for (size_t i = 0; i < active - 1; i++)
-    {
-        double a = R_values[i * n + i];
-        double b = R_values[(i + 1) * n + i];
-
-        if (fabs(b) < 1e-15)
-        {
-            continue;
-        }
-
-        double r = hypot(a, b);
-        double c = a / r;
-        double s = -b / r;
-#pragma omp simd aligned(R_values : 32)
-        for (size_t j = i; j < active; j++)
-        {
-            double t1                 = R_values[i * n + j];
-            double t2                 = R_values[(i + 1) * n + j];
-            R_values[i * n + j]       = c * t1 - s * t2;
-            R_values[(i + 1) * n + j] = s * t1 + c * t2;
-        }
-
-#pragma omp simd aligned(Q_values : 32)
-        for (size_t j = 0; j < active; j++)
-        {
-            double t1                 = Q_values[j * n + i];
-            double t2                 = Q_values[j * n + (i + 1)];
-            Q_values[j * n + i]       = c * t1 - s * t2;
-            Q_values[j * n + (i + 1)] = s * t1 + c * t2;
-        }
-    }
-}
-
-int _eigvals_two(Vector* eigenvalues, const Matrix* M)
-{
-    const double* a = M->values + 0;
-    const double* b = M->values + 1;
-    const double* c = M->values + 2;
-    const double* d = M->values + 3;
-
-    const double p     = -(*a + *d);
-    const double q     = *a * *d - *b * *c;
-    const double inner = 0.25 * p * p - q;
-    Vector_prepare_target(eigenvalues, 2);
-    if (inner < 0.0)
-    {
-        Log_log("complex eigenvalues encountered", LOG_RT_WARNING);
-        return MATRIX_MATH_ERROR;
-    }
-
-    const double x1        = -p * 0.5 - sqrt(inner);
-    const double x2        = -p * 0.5 + sqrt(inner);
-    eigenvalues->values[0] = x1;
-    eigenvalues->values[1] = x2;
-    return MATRIX_SUCCESS;
-}
-
-double _wilkinson_shift(const Matrix* H, size_t active)
-{
-    size_t n = H->n;
-
-    double* a = H->values + (active - 2) * n + (active - 2);
-    double* b = H->values + (active - 2) * n + (active - 1);
-    double* c = H->values + (active - 1) * n + (active - 2);
-    double* d = H->values + (active - 1) * n + (active - 1);
-
-    double tr        = (*a + *d) * 0.5;
-    double det       = (*a - *d) * 0.5;
-    double disc_term = det * det + *b * *c;
-    if (disc_term < 0.0)
-    {
-        disc_term = 0.0;
-    }
-    double disc = sqrt(disc_term);
-
-    double lambda1 = tr + disc;
-    double lambda2 = tr - disc;
-
-    return (fabs(lambda1 - *d) < fabs(lambda2 - *d)) ? lambda1 : lambda2;
-}
-
-int _eigvals_big(Vector* eigenvalues, const Matrix* M, bool sort)
-{
-    const size_t max_iters = 10000;
-    const double eps       = 1e-12;
-
-    Matrix H = Matrix_zeros_like(M, Complex);
-    Matrix_Hessenberg(&H, M); // Q^T M Q → upper Hessenberg
-    Matrix Q;
-    Q.m      = H.m;
-    Q.n      = H.n;
-    Q.values = NULL;
-    posix_memalign((void**)&Q.values, 32, Q.m * Q.n * sizeof(double));
-
-    Matrix R;
-    R.m      = H.m;
-    R.n      = H.n;
-    R.values = NULL;
-    posix_memalign((void**)&R.values, 32, Q.m * Q.n * sizeof(double));
-
-    size_t n      = H.n;
-    size_t active = n;
-
-    size_t total_iters        = 0;
-    double* restrict H_values = H.values;
-    double* restrict Q_values = Q.values;
-    double* restrict R_values = R.values;
-
-    while (active > 1)
-    {
-        for (size_t iter = 0; iter < max_iters; iter++)
-        {
-            total_iters++;
-            double sub = fabs(H_values[(active - 1) * n + (active - 2)]);
-
-            if (sub < eps)
-            {
-                break;
-            }
-
-            double mu = _wilkinson_shift(&H, active);
-
-#pragma omp simd
-            for (size_t i = 0; i < active; i++)
-            {
-                // H.values[i * n + i] -= mu;
-                H_values[i * n + i] -= mu;
-            }
-            // Matrix_QR_hessenberg(&Q, &R, &H, active);
-            _Matrix_QR_hessenberg_raw(
-              Q_values, R_values, H_values, active, Q.n);
-            // Matrix_Matrix_dot_active(&H, &R, &Q, active);
-            _Matrix_Matrix_dot_active_raw(
-              H_values, R_values, Q_values, active, H.m, H.n);
-
-#pragma omp simd
-            for (size_t i = 0; i < active; i++)
-            {
-                H_values[i * n + i] += mu;
-            }
-            bool converged = true;
-            for (size_t i = 0; i < active - 1; i++)
-            {
-                if (fabs(H_values[(i + 1) * n + i]) > eps)
-                {
-                    converged = false;
-                    break;
-                }
-            }
-            if (converged)
-            {
-                break;
-            }
-        }
-
-        if (fabs(H_values[(active - 1) * n + (active - 2)]) < eps)
-        {
-            active--;
-            continue;
-        }
-        else
-        {
-            break;
-        }
-    }
-    Vector_prepare_target(eigenvalues, n);
-#pragma omp simd
-    for (size_t i = 0; i < n; i++)
-    {
-        eigenvalues->values[i] = H_values[i * n + i];
-    }
-    if (sort)
-    {
-        Vector_sort_inplace(eigenvalues);
-    }
-
-    Matrix_free(&Q);
-    Matrix_free(&R);
-    Matrix_free(&H);
-
-    return MATRIX_SUCCESS;
-}
-
-int Matrix_eigvals(Vector* eigenvalues, const Matrix* M, bool sort)
-{
-    if (M->n == 2)
-    {
-        return _eigvals_two(eigenvalues, M);
-    }
-
-    return _eigvals_big(eigenvalues, M, sort);
-}
-
-int _outer_scalar(Matrix* target, const Vector* a, const Vector* b)
-{
     for (size_t m = 0; m < a->dim; m++)
     {
         for (size_t n = 0; n < b->dim; n++)
         {
-
-            double value  = a->values[m] * b->values[n];
-            double* t_val = target->values + m * target->n + n;
-            *t_val        = value;
-            // target->values[m * target->n + n] = value;
+            int_t value = a_values[m] * b_values[n];
+            ACCESS_VOID(int_t, t_val, target->values + m * target->n + n);
+            *t_val = value;
         }
     }
-
-    return MATRIX_SUCCESS;
 }
 
-int _outer_parallel(Matrix* target, const Vector* a, const Vector* b)
+static void _outer_real_s(Matrix* target, const Vector* a, const Vector* b)
 {
+    ACCESS_VOID(real_t, a_values, a);
+    ACCESS_VOID(real_t, b_values, b);
+
+    for (size_t m = 0; m < a->dim; m++)
+    {
+        for (size_t n = 0; n < b->dim; n++)
+        {
+            real_t value = a_values[m] * b_values[n];
+            ACCESS_VOID(real_t, t_val, target->values + m * target->n + n);
+            *t_val = value;
+        }
+    }
+}
+
+static void _outer_cmpl_s(Matrix* target, const Vector* a, const Vector* b)
+{
+    ACCESS_VOID(complex_t, a_values, a);
+    ACCESS_VOID(complex_t, b_values, b);
+
+    for (size_t m = 0; m < a->dim; m++)
+    {
+        for (size_t n = 0; n < b->dim; n++)
+        {
+            complex_t value = a_values[m] * b_values[n];
+            ACCESS_VOID(complex_t, t_val, target->values + m * target->n + n);
+            *t_val = value;
+        }
+    }
+}
+
+static void (*_outer_units_s[TYPE_COUNT])(Matrix* target,
+                                          const Vector* a,
+                                          const Vector* b) = {
+    [Int]     = _outer_int_s,
+    [Real]    = _outer_real_s,
+    [Complex] = _outer_cmpl_s,
+};
+
+static void _outer_int_p(Matrix* target, const Vector* a, const Vector* b)
+{
+    ACCESS_VOID(int_t, a_values, a);
+    ACCESS_VOID(int_t, b_values, b);
+
 #pragma omp parallel for // parallel outer basically always faster
     for (size_t m = 0; m < a->dim; m++)
     {
         for (size_t n = 0; n < b->dim; n++)
         {
-
-            double value  = a->values[m] * b->values[n];
-            double* t_val = target->values + m * target->n + n;
-            *t_val        = value;
-            // target->values[m * target->n + n] = value;
+            int_t value = a_values[m] * b_values[n];
+            ACCESS_VOID(int_t, t_val, target->values + m * target->n + n);
+            *t_val = value;
         }
     }
+}
 
-    return MATRIX_SUCCESS;
+static void _outer_real_p(Matrix* target, const Vector* a, const Vector* b)
+{
+    ACCESS_VOID(real_t, a_values, a);
+    ACCESS_VOID(real_t, b_values, b);
+
+#pragma omp parallel for // parallel outer basically always faster
+    for (size_t m = 0; m < a->dim; m++)
+    {
+        for (size_t n = 0; n < b->dim; n++)
+        {
+            real_t value = a_values[m] * b_values[n];
+            ACCESS_VOID(real_t, t_val, target->values + m * target->n + n);
+            *t_val = value;
+        }
+    }
+}
+
+static void _outer_cmpl_p(Matrix* target, const Vector* a, const Vector* b)
+{
+    ACCESS_VOID(complex_t, a_values, a);
+    ACCESS_VOID(complex_t, b_values, b);
+
+#pragma omp parallel for // parallel outer basically always faster
+    for (size_t m = 0; m < a->dim; m++)
+    {
+        for (size_t n = 0; n < b->dim; n++)
+        {
+            complex_t value = a_values[m] * b_values[n];
+            ACCESS_VOID(complex_t, t_val, target->values + m * target->n + n);
+            *t_val = value;
+        }
+    }
+}
+
+static void (*_outer_units_p[TYPE_COUNT])(Matrix* target,
+                                          const Vector* a,
+                                          const Vector* b) = {
+    [Int]     = _outer_int_p,
+    [Real]    = _outer_real_p,
+    [Complex] = _outer_cmpl_p,
+};
+
+int _outer_scalar(Matrix* target, const Vector* a, const Vector* b)
+{
+    DataType dt = MAX(a->dt, b->dt);
+    _outer_units_s[dt](target, a, b);
+}
+
+int _outer_parallel(Matrix* target, const Vector* a, const Vector* b)
+{
+    DataType dt = MAX(a->dt, b->dt);
+    _outer_units_p[dt](target, a, b);
 }
 
 int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b)
@@ -2151,135 +2423,110 @@ int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b)
     return _outer_scalar(target, a, b);
 }
 
-int _outer_square_scalar(Matrix* target, const Vector* v, const size_t N)
-{
-    for (size_t m = 0; m < N; m++)
-    {
-#pragma omp simd
-        for (size_t n = m; n < N; n++)
-        {
-            double value   = v->values[m] * v->values[n];
-            double* t_val1 = target->values + m * target->n + n;
-            double* t_val2 = target->values + n * target->n + m;
-            *t_val1        = value;
-            *t_val2        = value;
-
-            // target->values[m * target->n + n] = value;
-            // target->values[n * target->n + m] = value;
-        }
-    }
-    return MATRIX_SUCCESS;
-}
-
 // deprecated, gets outperformed by naiive outer product
 int Matrix_Vector_outer_square(Matrix* target, const Vector* v)
 {
-    if (v->dim > 0)
-    {
-        return Matrix_Vector_outer(target, v, v);
-    }
-
-    Matrix_prepare_target(target, v->dim, v->dim, v->dt);
-    return _outer_square_scalar(target, v, v->dim);
+    return Matrix_Vector_outer(target, v, v);
 }
 
-int Matrix_Hessenberg(Matrix* H, const Matrix* A)
-{
-    size_t m = A->m;
-    size_t n = A->n;
-    if (n != m)
-    {
-        return MATRIX_DIMENSION_ERROR;
-    }
+// int Matrix_Hessenberg(Matrix* H, const Matrix* A)
+// {
+//     size_t m = A->m;
+//     size_t n = A->n;
+//     if (n != m)
+//     {
+//         return MATRIX_DIMENSION_ERROR;
+//     }
+//
+//     Matrix_copy(H, A);
+//     // Matrix_prepare_target(H, m, n);
+//     double* restrict H_values = H->values;
+//
+//     for (size_t k = 0; k < m - 2; k++)
+//     {
+//         size_t rows = m - (k + 1);
+//
+//         Vector x;
+//         x.values = NULL;
+//         // x.values = malloc(rows * sizeof(double));
+//         posix_memalign((void**)&x.values, 32, rows * sizeof(double));
+//         x.dim        = rows;
+//         double normx = 0.0;
+//
+//         for (size_t i = 0; i < rows; i++)
+//         {
+//             double val  = H_values[(k + 1 + i) * n + k];
+//             x.values[i] = val;
+//             normx += val * val;
+//         }
+//         if (normx == 0.0)
+//         {
+//             Vector_free(&x);
+//             continue;
+//         }
+//         normx = sqrt(normx);
+//
+//         double sign = (x.values[0] >= 0.0) ? 1.0 : -1.0;
+//
+//         Vector e1    = Vector_zeros(rows, Real);
+//         e1.values[0] = 1.0;
+//
+//         Vector v;
+//         // v.values = malloc(x.dim * sizeof(double));
+//         v.values = NULL;
+//         posix_memalign((void**)&v.values, 32, x.dim * sizeof(double));
+//         v.dim = x.dim;
+//         Vector_copy(&v, &x);
+//         Vector_scale(&e1, sign * normx);
+//         Vector_add(&v, &e1);
+//         Vector_free(&e1);
+//
+//         double vnorm = 0.0;
+//
+//         for (size_t i = 0; i < v.dim; i++)
+//         {
+//             vnorm += v.values[i] * v.values[i];
+//         }
+//         vnorm = sqrt(vnorm);
+//
+//         // Vector_scale(&v, 1.0 / vnorm);
+//         for (size_t i = 0; i < v.dim; i++)
+//         {
+//             v.values[i] /= vnorm;
+//         }
+//
+//         for (size_t j = k; j < n; j++)
+//         {
+//             double dot = 0.0;
+//             for (size_t i = 0; i < rows; i++)
+//             {
+//                 dot += v.values[i] * H_values[(k + 1 + i) * n + j];
+//             }
+//
+//             for (size_t i = 0; i < rows; i++)
+//             {
+//                 H_values[(k + 1 + i) * n + j] -= 2.0 * v.values[i] * dot;
+//             }
+//         }
+//
+//         for (size_t i = 0; i < m; i++)
+//         {
+//             double dot = 0.0;
+//             for (size_t r = 0; r < rows; r++)
+//             {
+//                 dot += H_values[i * n + (k + 1 + r)] * v.values[r];
+//             }
+//             for (size_t r = 0; r < rows; r++)
+//             {
+//                 H_values[i * n + (k + 1 + r)] -= 2.0 * dot * v.values[r];
+//             }
+//         }
+//         Vector_free(&v);
+//         Vector_free(&x);
+//     }
+//     return MATRIX_SUCCESS;
+// }
 
-    Matrix_copy(H, A);
-    // Matrix_prepare_target(H, m, n);
-    double* restrict H_values = H->values;
-
-    for (size_t k = 0; k < m - 2; k++)
-    {
-        size_t rows = m - (k + 1);
-
-        Vector x;
-        x.values = NULL;
-        // x.values = malloc(rows * sizeof(double));
-        posix_memalign((void**)&x.values, 32, rows * sizeof(double));
-        x.dim        = rows;
-        double normx = 0.0;
-
-        for (size_t i = 0; i < rows; i++)
-        {
-            double val  = H_values[(k + 1 + i) * n + k];
-            x.values[i] = val;
-            normx += val * val;
-        }
-        if (normx == 0.0)
-        {
-            Vector_free(&x);
-            continue;
-        }
-        normx = sqrt(normx);
-
-        double sign = (x.values[0] >= 0.0) ? 1.0 : -1.0;
-
-        Vector e1    = Vector_zeros(rows);
-        e1.values[0] = 1.0;
-
-        Vector v;
-        // v.values = malloc(x.dim * sizeof(double));
-        v.values = NULL;
-        posix_memalign((void**)&v.values, 32, x.dim * sizeof(double));
-        v.dim = x.dim;
-        Vector_copy(&v, &x);
-        Vector_scale(&e1, sign * normx);
-        Vector_add(&v, &e1);
-        Vector_free(&e1);
-
-        double vnorm = 0.0;
-
-        for (size_t i = 0; i < v.dim; i++)
-        {
-            vnorm += v.values[i] * v.values[i];
-        }
-        vnorm = sqrt(vnorm);
-
-        // Vector_scale(&v, 1.0 / vnorm);
-        for (size_t i = 0; i < v.dim; i++)
-        {
-            v.values[i] /= vnorm;
-        }
-
-        for (size_t j = k; j < n; j++)
-        {
-            double dot = 0.0;
-            for (size_t i = 0; i < rows; i++)
-            {
-                dot += v.values[i] * H_values[(k + 1 + i) * n + j];
-            }
-
-            for (size_t i = 0; i < rows; i++)
-            {
-                H_values[(k + 1 + i) * n + j] -= 2.0 * v.values[i] * dot;
-            }
-        }
-
-        for (size_t i = 0; i < m; i++)
-        {
-            double dot = 0.0;
-            for (size_t r = 0; r < rows; r++)
-            {
-                dot += H_values[i * n + (k + 1 + r)] * v.values[r];
-            }
-            for (size_t r = 0; r < rows; r++)
-            {
-                H_values[i * n + (k + 1 + r)] -= 2.0 * dot * v.values[r];
-            }
-        }
-        Vector_free(&v);
-        Vector_free(&x);
-    }
-    return MATRIX_SUCCESS;
-}
 void Matrix_QR_hessenberg(Matrix* Q, Matrix* R, Matrix* H, size_t active)
 {
     size_t n = H->n;
