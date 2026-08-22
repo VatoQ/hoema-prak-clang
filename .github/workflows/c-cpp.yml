@@ -34,7 +34,3 @@ jobs:
             exit 1
           fi
         done
-
-    - name: Show optimization report
-      run: cat opt_report.txt
-
