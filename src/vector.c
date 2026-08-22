@@ -66,31 +66,31 @@ void Vector_prepare_target(Vector* target, const size_t dim, const DataType dt)
 
 static void _new_int(const size_t dim, void* v_values, const void* init_val)
 {
+    ACCESS_VOID(int_t, v_values_t, v_values);
 #pragma omp simd
     for (size_t i = 0; i < dim; i++)
     {
-        ACCESS_VOID(int_t, ptr, v_values + i);
-        ASSIGN_TYPED(int_t, ptr, init_val);
+        v_values_t[i] = *(int_t*)init_val;
     }
 }
 
 static void _new_real(const size_t dim, void* v_values, const void* init_val)
 {
+    ACCESS_VOID(real_t, v_values_t, v_values);
 #pragma omp simd
     for (size_t i = 0; i < dim; i++)
     {
-        ACCESS_VOID(real_t, ptr, v_values + i);
-        ASSIGN_TYPED(real_t, ptr, init_val);
+        v_values_t[i] = *(real_t*)init_val;
     }
 }
 
 static void _new_cmpl(const size_t dim, void* v_values, const void* init_val)
 {
+    ACCESS_VOID(complex_t, v_values_t, v_values);
 #pragma omp simd
     for (size_t i = 0; i < dim; i++)
     {
-        ACCESS_VOID(complex_t, ptr, v_values + i);
-        ASSIGN_TYPED(complex_t, ptr, init_val);
+        v_values_t[i] = *(complex_t*)init_val;
     }
 }
 
@@ -609,32 +609,32 @@ void Vector_free(Vector* v)
 
 static void _print_int(const size_t dim, const void* v_values)
 {
+    ACCESS_VOID(int_t, v_values_t, v_values);
     for (int i = 0; i < dim; i++)
     {
-        ACCESS_VOID(int_t, ptr, v_values + i);
-        int_t val = *ptr;
+        int_t val = v_values_t[i];
         printf("%zu ", val);
     }
 }
 
 static void _print_real(const size_t dim, const void* v_values)
 {
+    ACCESS_VOID(real_t, v_values_t, v_values);
     for (int i = 0; i < dim; i++)
     {
-        ACCESS_VOID(real_t, ptr, v_values + i);
-        real_t val = *ptr;
+        real_t val = v_values_t[i];
         printf("%f ", val);
     }
 }
 
 static void _print_cmpl(const size_t dim, const void* v_values)
 {
+    ACCESS_VOID(complex_t, v_values_t, v_values);
     for (int i = 0; i < dim; i++)
     {
-        ACCESS_VOID(complex_t, ptr, v_values + i);
-        complex_t val = *ptr;
+        complex_t val = v_values_t[i];
         PRINT_COMPLEX(val);
-        puts(" ");
+        printf(" ");
     }
 }
 
@@ -1478,8 +1478,8 @@ static void _scale_real(size_t dim, void* values, const void* lambda_ptr)
 
 static void _scale_cmpl(size_t dim, void* values, const void* lambda_ptr)
 {
-    ACCESS_VOID(real_t, lambda, lambda_ptr);
-    real_t* values_t = values;
+    ACCESS_VOID(complex_t, lambda, lambda_ptr);
+    complex_t* values_t = values;
 #pragma omp simd
     SCALE(dim, values_t[n], *lambda);
 }
@@ -1592,7 +1592,7 @@ int Vector_broadcast_sub(Vector* target, const void* a)
 //
 //     return VECTOR_SUCCESS;
 // }
-//
+
 // int Vector_gradient_maximize(Vector* target,
 //                              const Vector* x,
 //                              double (*f)(const Vector*),
