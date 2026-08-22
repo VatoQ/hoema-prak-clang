@@ -2,6 +2,7 @@
 #include "../include/vector.h"
 #include "../include/logging.h"
 #include "../include/prng.h"
+#include <alloca.h>
 #include <assert.h>
 #include <complex.h>
 #include <math.h>
@@ -111,9 +112,8 @@ Vector Vector_new_vals(const size_t dim,
                        const void* init_vals,
                        const DataType dt)
 {
-    double* vals = calloc(dim, sizeof(double));
-    memcpy(vals, init_vals, dim * sizeof(double));
-    Vector v = { vals, dim };
+    Vector v = Vector_zeros(dim, dt);
+    memcpy(v.values, init_vals, dim * elem_size(dt));
     return v;
 }
 
@@ -394,7 +394,7 @@ int Vector_all_close(const Vector* u, const Vector* v)
         return 0;
     }
 
-    if (_parallel_condition(v->dim * sizeof(double)))
+    if (_parallel_condition(v->dim * elem_size(v->dt)))
     {
         return _all_close_parallel(u, v);
     }
@@ -742,9 +742,10 @@ static void _max_scalar(void* t, const Vector* v)
 
 void Vector_max(void* target, const Vector* v)
 {
-    if (_parallel_condition(v->dim * sizeof(double)))
+    if (_parallel_condition(v->dim * elem_size(v->dt)))
     {
         _max_parallel(target, v);
+        return;
     }
     _max_scalar(target, v);
 }
@@ -887,11 +888,13 @@ static void _min_scalar(void* t, const Vector* v)
 
 void Vector_min(void* target, const Vector* v)
 {
-    if (_parallel_condition(v->dim * sizeof(double)))
+    if (_parallel_condition(v->dim * elem_size(v->dt)))
     {
-        return _min_parallel(target, v);
+        _min_parallel(target, v);
+        return;
     }
-    return _min_scalar(target, v);
+    _min_scalar(target, v);
+    return;
 }
 
 static void _insertion_int(void* v_values, ssize_t low, size_t high)
@@ -1159,7 +1162,7 @@ static real_t _norm_int(const Vector* v)
     int_t sum                = 0;
     int_t* restrict v_values = v->values;
     FMA(v->dim, sum, v_values[n], v_values[n]);
-    return sqrt(sum);
+    return sqrt((real_t)sum);
 }
 
 static real_t _norm_real(const Vector* v)
@@ -1345,7 +1348,7 @@ int Vector_dot(double* target, const Vector* u, const Vector* v)
         Log_log("Dimension error in Vector_sub()", LOG_RT_ERROR);
         return VECTOR_DIMENSION_ERROR;
     }
-    if (_parallel_condition(v->dim * sizeof(double)))
+    if (_parallel_condition(v->dim * elem_size(v->dt)))
     {
         return _dot_parallel(target, u, v);
     }
@@ -1505,7 +1508,7 @@ static void (*_negate_units[TYPE_COUNT])(void* target, const void* source) = {
 
 int Vector_broadcast_sub(Vector* target, const void* a)
 {
-    void* neg_a;
+    void* neg_a = alloca(elem_size(target->dt));
     _negate_units[target->dt](neg_a, a);
     return Vector_broadcast_add(target, neg_a);
 }
