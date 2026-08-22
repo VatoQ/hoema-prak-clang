@@ -657,13 +657,13 @@ static void _max_int_s(void* t, const size_t v_dim, const void* v_values)
 
     int_t max;
     get_limit(&max, Int, Min);
+    ACCESS_VOID(int_t, v_values_t, v_values);
 
     for (size_t i = 0; i < v_dim; i++)
     {
-        ACCESS_VOID(int_t, ptr, v_values + i);
-        if (*ptr > max)
+        if (v_values_t[i] > max)
         {
-            max = *ptr;
+            max = v_values_t[i];
         }
     }
     ASSIGN_UNTYPED(int_t, t, &max);
@@ -675,13 +675,13 @@ static void _max_int_p(void* t, const size_t v_dim, const void* v_values)
     int_t max;
     get_limit(&max, Int, Min);
 
+    ACCESS_VOID(int_t, v_values_t, v_values);
 #pragma omp parallel for
     for (size_t i = 0; i < v_dim; i++)
     {
-        ACCESS_VOID(int_t, ptr, v_values + i);
-        if (*ptr > max)
+        if (v_values_t[i] > max)
         {
-            max = *ptr;
+            max = v_values_t[i];
         }
     }
     ASSIGN_UNTYPED(int_t, t, &max);
@@ -693,13 +693,13 @@ static void _max_real_s(void* t, const size_t v_dim, const void* v_values)
     real_t max;
     get_limit(&max, Real, Infty);
     max *= -1;
+    ACCESS_VOID(real_t, v_values_t, v_values);
 
     for (size_t i = 0; i < v_dim; i++)
     {
-        ACCESS_VOID(real_t, ptr, v_values + i);
-        if (*ptr > max)
+        if (v_values_t[i] > max)
         {
-            max = *ptr;
+            max = v_values_t[i];
         }
     }
     ASSIGN_UNTYPED(real_t, t, &max);
@@ -711,14 +711,14 @@ static void _max_real_p(void* t, const size_t v_dim, const void* v_values)
     real_t max;
     get_limit(&max, Real, Infty);
     max *= -1;
+    ACCESS_VOID(real_t, v_values_t, v_values);
 
 #pragma omp parallel for
     for (size_t i = 0; i < v_dim; i++)
     {
-        ACCESS_VOID(real_t, ptr, v_values + i);
-        if (*ptr > max)
+        if (v_values_t[i] > max)
         {
-            max = *ptr;
+            max = v_values_t[i];
         }
     }
     ASSIGN_UNTYPED(real_t, t, &max);
@@ -730,15 +730,15 @@ static void _max_cmpl_s(void* t, const size_t v_dim, const void* v_values)
     real_t max;
     get_limit(&max, Real, Infty);
     max *= -1;
+    ACCESS_VOID(complex_t, v_values_t, v_values);
 
     for (size_t i = 0; i < v_dim; i++)
     {
-        ACCESS_VOID(complex_t, ptr, v_values + i);
-        real_t abs_z = cabs(*ptr);
+        real_t abs_z = cabs(v_values_t[i]);
 
         if (abs_z > max)
         {
-            max = *ptr;
+            max = v_values_t[i];
         }
     }
     ASSIGN_UNTYPED(real_t, t, &max);
@@ -749,15 +749,16 @@ static void _max_cmpl_p(void* t, const size_t v_dim, const void* v_values)
 
     real_t max;
     get_limit(&max, Real, Min);
+    ACCESS_VOID(complex_t, v_values_t, v_values);
 
 #pragma omp parallel for
     for (size_t i = 0; i < v_dim; i++)
     {
-        ACCESS_VOID(complex_t, ptr, v_values + i);
-        real_t abs_z = cabs(*ptr);
+        real_t abs_z = cabs(v_values_t[i]);
+
         if (abs_z > max)
         {
-            max = *ptr;
+            max = v_values_t[i];
         }
     }
     ASSIGN_UNTYPED(real_t, t, &max);
@@ -953,20 +954,15 @@ static void _insertion_int(void* v_values, ssize_t low, size_t high)
     ACCESS_VOID(int_t, v_values_t, v_values);
     for (size_t i = low + 1; i <= high; ++i)
     {
-        // ACCESS_VOID(int_t, key, v_values + i);
         int_t key = v_values_t[i];
         ssize_t j = i - 1;
-        // ACCESS_VOID(int_t, ptr_j, v_values + j);
-        int_t ptr_j = v_values_t[j];
 
-        while (j >= low && ptr_j > key)
+        while (j >= low && v_values_t[j] > key)
         {
-            // ACCESS_VOID(int_t, ptr_j_1, v_values + j + 1);
-            int_t ptr_j_1 = v_values_t[j + 1];
-            ptr_j_1       = ptr_j;
+            v_values_t[j + 1] = v_values_t[j];
             j--;
-            ptr_j = v_values_t[j];
         }
+        v_values_t[j + 1] = key;
     }
 }
 
@@ -975,16 +971,15 @@ static void _insertion_real(void* v_values, ssize_t low, size_t high)
     ACCESS_VOID(real_t, v_values_t, v_values);
     for (size_t i = low + 1; i <= high; ++i)
     {
-        real_t key   = v_values_t[i];
-        ssize_t j    = i - 1;
-        real_t ptr_j = v_values_t[j];
-        while (j >= low && ptr_j > key)
+        real_t key = v_values_t[i];
+        ssize_t j  = i - 1;
+
+        while (j >= low && v_values_t[j] > key)
         {
-            real_t ptr_j_1 = v_values_t[j + 1];
-            ptr_j_1        = ptr_j;
+            v_values_t[j + 1] = v_values_t[j];
             j--;
-            ptr_j = v_values_t[j];
         }
+        v_values_t[j + 1] = key;
     }
 }
 
@@ -1122,7 +1117,7 @@ static void _part_int(Vector* v, size_t* i, ssize_t low, size_t high)
     {
         if (v_values[j] < pivot)
         {
-            i++;
+            (*i)++;
             _swap(v, *i, j);
         }
     }
@@ -1138,7 +1133,7 @@ static void _part_real(Vector* v, size_t* i, ssize_t low, size_t high)
     {
         if (v_values[j] < pivot)
         {
-            i++;
+            (*i)++;
             _swap(v, *i, j);
         }
     }
