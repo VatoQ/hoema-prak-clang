@@ -28,7 +28,7 @@ void sub_callback(void* ctx)
 void scale_callback(void* ctx)
 {
     compute_args* a = ctx;
-    Vector_scale(a->target, a->lambda);
+    Vector_scale(a->target, &a->lambda);
 }
 
 void dot_callback(void* ctx)
