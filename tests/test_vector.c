@@ -12,11 +12,11 @@ static double get_real(const Vector* v, size_t i)
     switch (v->dt)
     {
         case Int:
-            return (double)((int*)v->values)[i];
+            return (real_t)((int_t*)v->values)[i];
         case Real:
-            return ((double*)v->values)[i];
+            return ((real_t*)v->values)[i];
         case Complex:
-            return creal(((complex double*)v->values)[i]);
+            return creal(((complex_t*)v->values)[i]);
         default:
             TEST_CHECK_(0, "Unknown DataType");
             return 0.0;
@@ -26,7 +26,7 @@ static double get_real(const Vector* v, size_t i)
 static complex double get_complex(const Vector* v, size_t i)
 {
     if (v->dt == Complex)
-        return ((complex double*)v->values)[i];
+        return ((complex_t*)v->values)[i];
     TEST_CHECK_(0, "get_complex called on non-complex vector");
     return 0.0 + 0.0 * I;
 }
@@ -36,13 +36,13 @@ static void set_real(Vector* v, size_t i, double x)
     switch (v->dt)
     {
         case Int:
-            ((int*)v->values)[i] = (int)x;
+            ((int_t*)v->values)[i] = (int)x;
             break;
         case Real:
-            ((double*)v->values)[i] = x;
+            ((real_t*)v->values)[i] = x;
             break;
         case Complex:
-            ((complex double*)v->values)[i] = x + 0.0 * I;
+            ((complex_t*)v->values)[i] = x + 0.0 * I;
             break;
         default:
             TEST_CHECK_(0, "Unknown DataType");
@@ -59,20 +59,27 @@ void test_new_vals_real(void)
     Vector v       = Vector_new_vals(3, init, Real);
 
     TEST_CHECK(v.dim == 3);
+    ACCESS_VOID(real_t, v_values, v.values);
     for (size_t i = 0; i < 3; i++)
-        TEST_CHECK(get_real(&v, i) == init[i]);
+    {
+        real_t val = v_values[i];
+        TEST_CHECK(fabs(val - init[i]) < EPS);
+    }
 
     Vector_free(&v);
 }
 
 void test_new_vals_int(void)
 {
-    int init[4] = { 10, 20, 30, 40 };
-    Vector v    = Vector_new_vals(4, init, Int);
+    int_t init[4] = { 10, 20, 30, 40 };
+    Vector v      = Vector_new_vals(4, init, Int);
 
     TEST_CHECK(v.dim == 4);
+    ACCESS_VOID(int_t, v_values, v.values);
     for (size_t i = 0; i < 4; i++)
-        TEST_CHECK(get_real(&v, i) == init[i]);
+    {
+        TEST_CHECK(v_values[i] == init[i]);
+    }
 
     Vector_free(&v);
 }
@@ -83,21 +90,27 @@ void test_new_vals_complex(void)
     Vector v               = Vector_new_vals(3, init, Complex);
 
     TEST_CHECK(v.dim == 3);
+    ACCESS_VOID(complex_t, v_values, v.values);
     for (size_t i = 0; i < 3; i++)
-        TEST_CHECK(get_complex(&v, i) == init[i]);
+    {
+        TEST_CHECK(v_values[i] == init[i]);
+    }
 
     Vector_free(&v);
 }
 
 void test_copy(void)
 {
-    double init[3] = { 9.0, 8.0, 7.0 };
+    real_t init[3] = { 9.0, 8.0, 7.0 };
     Vector v       = Vector_new_vals(3, init, Real);
     Vector c       = Vector_new_copy(&v);
 
     TEST_CHECK(c.dim == 3);
+    ACCESS_VOID(real_t, v_values, v.values);
     for (size_t i = 0; i < 3; i++)
-        TEST_CHECK(get_real(&c, i) == init[i]);
+    {
+        TEST_CHECK(v_values[i] == init[i]);
+    }
 
     Vector_free(&v);
     Vector_free(&c);
@@ -111,13 +124,14 @@ void test_get_set_item_real(void)
 {
     Vector v = Vector_zeros(3, Real);
 
-    double x;
+    real_t x;
     TEST_CHECK(Vector_get_at(&x, &v, 1) == VECTOR_SUCCESS);
     TEST_CHECK(x == 0.0);
 
-    double newval = 5.5;
+    real_t newval = 5.5;
     TEST_CHECK(Vector_set_item(&v, 1, &newval) == VECTOR_SUCCESS);
-    TEST_CHECK(get_real(&v, 1) == 5.5);
+    ACCESS_VOID(real_t, v_values, v.values);
+    TEST_CHECK(v_values[1] == 5.5);
 
     TEST_CHECK(Vector_get_at(&x, &v, 99) == VECTOR_DIMENSION_ERROR);
     TEST_CHECK(Vector_set_item(&v, 99, &newval) == VECTOR_DIMENSION_ERROR);
@@ -129,13 +143,14 @@ void test_get_set_item_int(void)
 {
     Vector v = Vector_zeros(3, Int);
 
-    double x;
+    real_t x;
     TEST_CHECK(Vector_get_at(&x, &v, 1) == VECTOR_SUCCESS);
     TEST_CHECK(x == 0.0);
 
-    int newval = 7;
+    real_t newval = 7.0;
     TEST_CHECK(Vector_set_item(&v, 1, &newval) == VECTOR_SUCCESS);
-    TEST_CHECK(get_real(&v, 1) == 7.0);
+    ACCESS_VOID(real_t, v_values, v.values);
+    TEST_CHECK(v_values[1] == 7.0);
 
     Vector_free(&v);
 }
@@ -146,7 +161,8 @@ void test_get_set_item_complex(void)
 
     complex double c = 2.0 + 3.0 * I;
     TEST_CHECK(Vector_set_item(&v, 1, &c) == VECTOR_SUCCESS);
-    TEST_CHECK(get_complex(&v, 1) == c);
+    ACCESS_VOID(complex_t, v_values, v.values);
+    TEST_CHECK(v_values[1] == c);
 
     Vector_free(&v);
 }
@@ -185,9 +201,10 @@ void test_random_uniform_real(void)
 
     Vector v = Vector_new_random_uniform(100, -1.0, 1.0, Real);
 
+    ACCESS_VOID(real_t, v_values, v.values);
     for (size_t i = 0; i < 100; i++)
     {
-        double x = get_real(&v, i);
+        double x = v_values[i];
         TEST_CHECK(x >= -1.0 && x <= 1.0);
     }
 
@@ -201,8 +218,9 @@ void test_random_normal_real(void)
     Vector v = Vector_new_random_normal(200, 0.0, 1.0, Real);
 
     double sum = 0.0;
+    ACCESS_VOID(real_t, v_values, v.values);
     for (size_t i = 0; i < 200; i++)
-        sum += get_real(&v, i);
+        sum += v_values[i];
 
     double mean = sum / 200.0;
     TEST_CHECK(fabs(mean) < 0.3);
@@ -305,12 +323,17 @@ void test_sort_real(void)
     Vector sorted = Vector_zeros(5, Real);
     TEST_CHECK(Vector_sort(&sorted, &v) == VECTOR_SUCCESS);
 
+    ACCESS_VOID(real_t, sorted_values, sorted.values);
     for (size_t i = 0; i < 5; i++)
-        TEST_CHECK(get_real(&sorted, i) == (double)(i + 1));
+    {
+        printf("val: %f\n", sorted_values[i]);
+        TEST_CHECK(sorted_values[i] == (double)(i + 1));
+    }
 
     TEST_CHECK(Vector_sort_inplace(&v) == VECTOR_SUCCESS);
+    ACCESS_VOID(real_t, v_values, v.values);
     for (size_t i = 0; i < 5; i++)
-        TEST_CHECK(get_real(&v, i) == (double)(i + 1));
+        TEST_CHECK(v_values[i] == (double)(i + 1));
 
     Vector_free(&v);
     Vector_free(&sorted);
