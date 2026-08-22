@@ -105,7 +105,7 @@ opt_report: $(OPT_REPORT)
 	
 	@if [ -f .opt_details.txt ]; then \
 	    echo "Appending GCC optimization details..." >> $(OPT_REPORT); \
-	    cat opt_details.txt >> $(OPT_REPORT); \
+	    cat .opt_details.txt >> $(OPT_REPORT); \
 	else \
 	    echo "No GCC optimization details found (opt_details.txt missing)" >> $(OPT_REPORT); \
 	fi

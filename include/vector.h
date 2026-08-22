@@ -9,9 +9,6 @@
 //~- ------------ -~//
 //~- STATUS_CODES -~//
 //~- ------------ -~//
-// #define VECTOR_SUCCESS 0
-// #define VECTOR_DIMENSION_ERROR -10
-// #define VECTOR_SUCCESS 0
 
 typedef enum
 {
@@ -31,8 +28,9 @@ typedef enum
  */
 typedef struct
 {
-    double* values;
+    void* values;
     size_t dim;
+    DataType dt;
 } Vector;
 
 typedef struct
@@ -46,22 +44,9 @@ typedef struct
 //~- ------------------------- -~//
 ///////////////////////////////////
 
-/**
- * @brief Inspect the target. If the shape already matches the desired result,
- * it is left as is. Otherwise it will be deconstructed and reallocated.
- *
- * @param target Vector to be inspected.
- * @param dim Required dimension.
- */
-void Vector_prepare_target(Vector* target, const size_t dim);
-/**
- * @brief Constructs a new vector with a specified dimension and value.
- *
- * @param `dim` Dimenstion of the new vector
- * @param `init_val` Initial value to give every entry in the new vector
- * @return A new vector of the shape { `init_val`, (`dim` times) }.
- */
-Vector Vector_new(const size_t dim, const double init_val);
+void Vector_prepare_target(Vector* target, const size_t dim, const DataType dt);
+
+Vector Vector_new(const size_t dim, const void* init_val, const DataType dt);
 /**
  * @brief Constructs a new vector with a specified dimension and values.
  *
@@ -70,15 +55,17 @@ Vector Vector_new(const size_t dim, const double init_val);
  * @return A new constructed vector with shape { `init_vals[0]` ...
  * `init_vals[dim-1]` }.
  */
-Vector Vector_new_vals(const size_t dim, const double* init_vals);
+Vector Vector_new_vals(const size_t dim, const void* init_vals, DataType dt);
 
 Vector Vector_new_random_normal(const size_t dim,
                                 const double mean,
-                                const double variance);
+                                const double variance,
+                                const DataType dt);
 
 Vector Vector_new_random_uniform(const size_t dim,
                                  const double min,
-                                 const double max);
+                                 const double max,
+                                 const DataType dt);
 /**
  * @brief Copies the vector `v` and returns a new vector.
  *
@@ -93,20 +80,10 @@ Vector Vector_new_copy(const Vector* v);
  * @return A new vector with the shape { 0.0, (`v->dim` times) }
  */
 Vector Vector_zeros_like(const Vector* v);
-/**
- * @brief Constructs a new vector containing `dim` zeros.
- *
- * @param `dim` Dimension of the new vector.
- * @return A new vector with the shape { 0.0 (`dim` times) }
- */
-Vector Vector_zeros(const size_t dim);
-/**
- * @brief Constructs a new vector containing `dim` ones.
- *
- * @param `dim` Dimension of the new vector.
- * @return A new vector with the shape { 1.0 (`dim` times) }
- */
-Vector Vector_ones(const size_t dim);
+
+Vector Vector_zeros(const size_t dim, const DataType dt);
+
+Vector Vector_ones(const size_t dim, const DataType dt);
 /**
  * @brief Copy `v` into `target`.
  *
@@ -117,7 +94,7 @@ void Vector_copy(Vector* target, const Vector* v);
 
 int Vector_all_close(const Vector* u, const Vector* v);
 
-double Vector_at(const Vector* v, const size_t index);
+int Vector_at(void* target, const Vector* v, const size_t index);
 /**
  * @brief Set the value of `v` of a specified `index` to `target`.
  *
@@ -127,15 +104,8 @@ double Vector_at(const Vector* v, const size_t index);
  * @return `VECTOR_DIMENSION_ERROR` or `VECTOR_SUCCESS`
  */
 int Vector_get_at(double* target, const Vector* v, const size_t index);
-/**
- * @brief Set `val` to a specified `index` in `v`.
- *
- * @param `v` Vector in which to store `val`.
- * @param `index` Index at which to store `val`.
- * @param `val` Value to be stored at `index` in `v`
- * @return `VECTOR_DIMENSION_ERROR` or `VECTOR_SUCCESS`
- */
-int Vector_set_item(Vector* v, const size_t index, const double val);
+
+int Vector_set_item(Vector* v, const size_t index, const void* val);
 /**
  * @brief Get the dimension of a vector.
  *
@@ -156,21 +126,9 @@ void Vector_free(Vector* v);
  */
 void Vector_print(Vector* v);
 
-/**
- * @brief Calculate the maximum item in `v`.
- *
- * @param v Vector to be inspected.
- * @return Maximum value stored in `v`.
- */
-double Vector_max(const Vector* v);
+void Vector_max(void* target, const Vector* v);
 
-/**
- * @brief Calculate the minimum item in `v`.
- *
- * @param v Vector to be inspected.
- * @return Minimum value stored in `v`.
- */
-double Vector_min(const Vector* v);
+void Vector_min(void* target, const Vector* v);
 
 int Vector_sort_inplace(Vector* v);
 
@@ -184,14 +142,7 @@ void Vector_init_prng(const int seed);
 //~- ------------------------------ -~//
 /////////////////////////////////////////
 
-/**
- * @brief Euclidian norm of `v`.
- *
- * @param `v` vector to get the norm from.
- * @return Euclidian norm \[\| \mathbf{v} \|=\sqrt{\sum_{n=1}^{dim}
- * \mathbf{v}_n^2}\]
- */
-double Vector_norm(const Vector* v);
+real_t Vector_norm(const Vector* v);
 /**
  * @brief Add `v` to `target`. Equivalent to `target += v`, if they were atomic.
  *
@@ -218,7 +169,7 @@ int Vector_sub(Vector* target, const Vector* v);
  * @param `lambda` Scalar.
  * @return `VECTOR_SUCCESS`
  */
-int Vector_scale(Vector* target, const double lambda);
+int Vector_scale(Vector* target, const void* lambda);
 /**
  * @brief Add `a` to every item in `target`.
  *
@@ -226,7 +177,7 @@ int Vector_scale(Vector* target, const double lambda);
  * @param `a` addend.
  * @return `VECTOR_SUCCESS`
  */
-int Vector_broadcast_add(Vector* target, const double a);
+int Vector_broadcast_add(Vector* target, const void* a);
 
 /**
  * @brief Subtract `a` from every item in `target`.
@@ -235,7 +186,7 @@ int Vector_broadcast_add(Vector* target, const double a);
  * @param `a` subtrahend.
  * @return `VECTOR_SUCCESS`
  */
-int Vector_broadcast_sub(Vector* target, const double a);
+int Vector_broadcast_sub(Vector* target, const void* a);
 
 /**
  * @brief Store the dot product `<u,v>` to `target`.
@@ -246,42 +197,43 @@ int Vector_broadcast_sub(Vector* target, const double a);
  * @return `VECTOR_SUCCESS` or `VECTOR_DIMENSION_ERROR`
  */
 int Vector_dot(double* target, const Vector* u, const Vector* v);
-/**
- * @brief Numerical approximation of \[\nabla(f(x))\].
- *
- * @param `grad` Target vector. The gradient is stored here.
- * @param `x` Point at which the gradient is evaluated.
- * @param `f(x)` Function that accepts a vector and returns a real number.
- * @return `VECTOR_SUCCESS`
- */
-int Vector_gradient(Vector* grad,
-                    const Vector* x,
-                    double (*f)(const Vector* x));
-/**
- * @brief Gradient ascent method to maximize \[f(x)\].
- *
- * @param `target` X value of the local maximum is stored here.
- * @param `x` Starting point of the maximizer.
- * @param `f(x)` Function to be maximized.
- * @param stepsize Initial stepsize of the gradient ascent.
- * @return `VECTOR_DIMENSION_ERROR` or `VECTOR_SUCCESS`
- */
-int Vector_gradient_maximize(Vector* target,
-                             const Vector* x,
-                             double (*f)(const Vector*),
-                             double stepsize);
-/**
- * @brief Gradient descent method to maximize \[f(x)\].
- *
- * @param `target` X value of the local maximum is stored here.
- * @param `x` Starting point of the maximizer.
- * @param `f(x)` Function to be maximized.
- * @param stepsize Initial stepsize of the gradient descent.
- * @return `VECTOR_DIMENSION_ERROR` or `VECTOR_SUCCESS`
- */
-int Vector_gradient_minimize(Vector* target,
-                             const Vector* x,
-                             double (*f)(const Vector*),
-                             double stepsize);
+
+// /**
+//  * @brief Numerical approximation of \[\nabla(f(x))\].
+//  *
+//  * @param `grad` Target vector. The gradient is stored here.
+//  * @param `x` Point at which the gradient is evaluated.
+//  * @param `f(x)` Function that accepts a vector and returns a real number.
+//  * @return `VECTOR_SUCCESS`
+//  */
+// int Vector_gradient(Vector* grad,
+//                     const Vector* x,
+//                     double (*f)(const Vector* x));
+// /**
+//  * @brief Gradient ascent method to maximize \[f(x)\].
+//  *
+//  * @param `target` X value of the local maximum is stored here.
+//  * @param `x` Starting point of the maximizer.
+//  * @param `f(x)` Function to be maximized.
+//  * @param stepsize Initial stepsize of the gradient ascent.
+//  * @return `VECTOR_DIMENSION_ERROR` or `VECTOR_SUCCESS`
+//  */
+// int Vector_gradient_maximize(Vector* target,
+//                              const Vector* x,
+//                              double (*f)(const Vector*),
+//                              double stepsize);
+// /**
+//  * @brief Gradient descent method to maximize \[f(x)\].
+//  *
+//  * @param `target` X value of the local maximum is stored here.
+//  * @param `x` Starting point of the maximizer.
+//  * @param `f(x)` Function to be maximized.
+//  * @param stepsize Initial stepsize of the gradient descent.
+//  * @return `VECTOR_DIMENSION_ERROR` or `VECTOR_SUCCESS`
+//  */
+// int Vector_gradient_minimize(Vector* target,
+//                              const Vector* x,
+//                              double (*f)(const Vector*),
+//                              double stepsize);
 
 #endif // VECTOR_H
