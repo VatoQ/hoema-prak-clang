@@ -11,12 +11,12 @@
 #define LOG_INFO_THRESHOLD 100 * 1024 * 1024
 
 #define ACCESS_VOID(typename, target, source)                                  \
-    typename*(target) = (typename*)(source)
+    typename* target = (typename*)(source)
 
-#define ASSIGN_TYPED(typename, target, source) *(target) = *(typename*)(source)
+#define ASSIGN_TYPED(typename, target, source) *target = *(typename*)(source)
 
 #define ASSIGN_UNTYPED(typename, target, source)                               \
-    *(typename*)(target) = *(typename*)(source)
+    *(typename*)target = *(typename*)(source)
 
 #define FMA(upper, target, a, b)                                               \
     for (size_t n = 0; n < upper; n++)                                         \
@@ -28,7 +28,7 @@
 
 #define SUB(upper, a, b)                                                       \
     for (size_t n = 0; n < upper; n++)                                         \
-    a += b
+    a -= b
 
 #define SCALE(upper, a, b)                                                     \
     for (size_t n = 0; n < upper; n++)                                         \
