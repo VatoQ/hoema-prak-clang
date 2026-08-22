@@ -44,8 +44,23 @@ typedef struct
 //~- ------------------------- -~//
 ///////////////////////////////////
 
+/**
+ * @brief Prepare a target vector with specified dimension and data type.
+ *
+ * @param target Pointer to the vector to be prepared.
+ * @param dim Dimension of the vector.
+ * @param dt Data type of the vector elements.
+ */
 void Vector_prepare_target(Vector* target, const size_t dim, const DataType dt);
 
+/**
+ * @brief Constructs a new vector with a specified dimension and initial value.
+ *
+ * @param dim Dimension of the new vector.
+ * @param init_val Initial value to fill the vector.
+ * @param dt Data type of the vector elements.
+ * @return A new constructed vector with all elements initialized to `init_val`.
+ */
 Vector Vector_new(const size_t dim, const void* init_val, const DataType dt);
 /**
  * @brief Constructs a new vector with a specified dimension and values.
@@ -57,11 +72,29 @@ Vector Vector_new(const size_t dim, const void* init_val, const DataType dt);
  */
 Vector Vector_new_vals(const size_t dim, const void* init_vals, DataType dt);
 
+/**
+ * @brief Constructs a new vector with random values from a normal distribution.
+ *
+ * @param dim Dimension of the new vector.
+ * @param mean Mean of the normal distribution.
+ * @param variance Variance of the normal distribution.
+ * @param dt Data type of the vector elements.
+ * @return A new vector with random values sampled from N(mean, variance).
+ */
 Vector Vector_new_random_normal(const size_t dim,
                                 const double mean,
                                 const double variance,
                                 const DataType dt);
 
+/**
+ * @brief Constructs a new vector with random values from a uniform distribution.
+ *
+ * @param dim Dimension of the new vector.
+ * @param min Minimum value of the uniform distribution.
+ * @param max Maximum value of the uniform distribution.
+ * @param dt Data type of the vector elements.
+ * @return A new vector with random values uniformly distributed in [min, max).
+ */
 Vector Vector_new_random_uniform(const size_t dim,
                                  const double min,
                                  const double max,
@@ -81,8 +114,22 @@ Vector Vector_new_copy(const Vector* v);
  */
 Vector Vector_zeros_like(const Vector* v);
 
+/**
+ * @brief Constructs a new vector of specified dimension filled with zeros.
+ *
+ * @param dim Dimension of the new vector.
+ * @param dt Data type of the vector elements.
+ * @return A new vector with all elements set to 0.0.
+ */
 Vector Vector_zeros(const size_t dim, const DataType dt);
 
+/**
+ * @brief Constructs a new vector of specified dimension filled with ones.
+ *
+ * @param dim Dimension of the new vector.
+ * @param dt Data type of the vector elements.
+ * @return A new vector with all elements set to 1.0.
+ */
 Vector Vector_ones(const size_t dim, const DataType dt);
 /**
  * @brief Copy `v` into `target`.
@@ -92,8 +139,23 @@ Vector Vector_ones(const size_t dim, const DataType dt);
  */
 void Vector_copy(Vector* target, const Vector* v);
 
+/**
+ * @brief Check if two vectors are approximately equal.
+ *
+ * @param u First vector to compare.
+ * @param v Second vector to compare.
+ * @return 1 if all corresponding elements are close within tolerance, 0 otherwise.
+ */
 int Vector_all_close(const Vector* u, const Vector* v);
 
+/**
+ * @brief Get the value at a specified index in vector `v`.
+ *
+ * @param target Value is stored here.
+ * @param v Vector to be accessed.
+ * @param index Index of the data.
+ * @return `VECTOR_DIMENSION_ERROR` if index is out of bounds, `VECTOR_SUCCESS` otherwise.
+ */
 int Vector_at(void* target, const Vector* v, const size_t index);
 /**
  * @brief Set the value of `v` of a specified `index` to `target`.
@@ -105,6 +167,14 @@ int Vector_at(void* target, const Vector* v, const size_t index);
  */
 int Vector_get_at(double* target, const Vector* v, const size_t index);
 
+/**
+ * @brief Set the element at the specified index in vector `v`.
+ *
+ * @param v Vector to be modified.
+ * @param index Index of the element to set.
+ * @param val Pointer to the new value.
+ * @return `VECTOR_DIMENSION_ERROR` if index is out of bounds, `VECTOR_SUCCESS` otherwise.
+ */
 int Vector_set_item(Vector* v, const size_t index, const void* val);
 /**
  * @brief Get the dimension of a vector.
@@ -126,14 +196,44 @@ void Vector_free(Vector* v);
  */
 void Vector_print(Vector* v);
 
+/**
+ * @brief Find the maximum value in vector `v`.
+ *
+ * @param target Pointer where the maximum value will be stored.
+ * @param v Vector to search.
+ */
 void Vector_max(void* target, const Vector* v);
 
+/**
+ * @brief Find the minimum value in vector `v`.
+ *
+ * @param target Pointer where the minimum value will be stored.
+ * @param v Vector to search.
+ */
 void Vector_min(void* target, const Vector* v);
 
+/**
+ * @brief Sort vector `v` in-place.
+ *
+ * @param v Vector to be sorted.
+ * @return `VECTOR_SUCCESS` on successful sort, error code otherwise.
+ */
 int Vector_sort_inplace(Vector* v);
 
+/**
+ * @brief Sort vector `v` and store the result in `target`.
+ *
+ * @param target Vector to store the sorted result.
+ * @param v Vector to be sorted.
+ * @return `VECTOR_SUCCESS` on successful sort, error code otherwise.
+ */
 int Vector_sort(Vector* target, const Vector* v);
 
+/**
+ * @brief Initialize the pseudo-random number generator with a seed.
+ *
+ * @param seed Seed value for the PRNG.
+ */
 void Vector_init_prng(const int seed);
 
 /////////////////////////////////////////
@@ -142,6 +242,12 @@ void Vector_init_prng(const int seed);
 //~- ------------------------------ -~//
 /////////////////////////////////////////
 
+/**
+ * @brief Calculate the Euclidean norm (length) of vector `v`.
+ *
+ * @param v Vector whose norm is to be calculated.
+ * @return The L2 norm of the vector.
+ */
 real_t Vector_norm(const Vector* v);
 /**
  * @brief Add `v` to `target`. Equivalent to `target += v`, if they were atomic.
