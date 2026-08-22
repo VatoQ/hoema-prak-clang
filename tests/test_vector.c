@@ -326,7 +326,6 @@ void test_sort_real(void)
     ACCESS_VOID(real_t, sorted_values, sorted.values);
     for (size_t i = 0; i < 5; i++)
     {
-        printf("val: %f\n", sorted_values[i]);
         TEST_CHECK(sorted_values[i] == (double)(i + 1));
     }
 
@@ -351,6 +350,8 @@ void test_max_min_real(void)
     double mx, mn;
     Vector_max(&mx, &v);
     Vector_min(&mn, &v);
+
+    printf("mx: %f, mn: %f\n", mx, mn);
 
     TEST_CHECK(mx == 10.0);
     TEST_CHECK(mn == -1.0);
