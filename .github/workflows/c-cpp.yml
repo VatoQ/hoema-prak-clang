@@ -1,29 +1,39 @@
-name: C CI
+name: Build and Test
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ main, develop ]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install build dependencies
-      run: sudo apt-get update && sudo apt-get install -y build-essential
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential libgomp1
 
-    - name: Build
-      run: make
+    - name: Build project
+      run: make clean && make
 
-    - name: Run tests
+    - name: Build tests
       run: make tests
 
-    - name: Run benchmarks + optimization report
-      run: make benchmarks
+    - name: Run tests
+      run: |
+        for test in bin/test_*; do
+          echo "Running $test..."
+          "$test"
+          if [ $? -ne 0 ]; then
+            echo "Test $test failed!"
+            exit 1
+          fi
+        done
 
     - name: Show optimization report
       run: cat opt_report.txt
