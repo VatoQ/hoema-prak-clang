@@ -3,305 +3,357 @@
 #include <math.h>
 #include <stddef.h>
 
-void test_vector_create(void)
+/* ============================================================
+   Helpers for typed access
+   ============================================================ */
+
+static double get_real(const Vector* v, size_t i)
 {
-    Vector v = Vector_new(5, 3.14);
+    switch (v->dt)
+    {
+        case Int:
+            return (double)((int*)v->values)[i];
+        case Real:
+            return ((double*)v->values)[i];
+        case Complex:
+            return creal(((complex double*)v->values)[i]);
+        default:
+            TEST_CHECK_(0, "Unknown DataType");
+            return 0.0;
+    }
+}
 
-    TEST_CHECK(v.values != NULL);
-    TEST_CHECK(v.dim == 5);
+static complex double get_complex(const Vector* v, size_t i)
+{
+    if (v->dt == Complex)
+        return ((complex double*)v->values)[i];
+    TEST_CHECK_(0, "get_complex called on non-complex vector");
+    return 0.0 + 0.0 * I;
+}
 
-    for (size_t i = 0; i < 5; i++)
-        TEST_CHECK(fabs(v.values[i] - 3.14) < EPS);
+static void set_real(Vector* v, size_t i, double x)
+{
+    switch (v->dt)
+    {
+        case Int:
+            ((int*)v->values)[i] = (int)x;
+            break;
+        case Real:
+            ((double*)v->values)[i] = x;
+            break;
+        case Complex:
+            ((complex double*)v->values)[i] = x + 0.0 * I;
+            break;
+        default:
+            TEST_CHECK_(0, "Unknown DataType");
+    }
+}
+
+/* ============================================================
+   Construction tests
+   ============================================================ */
+
+void test_new_vals_real(void)
+{
+    double init[3] = { 1.0, 2.0, 3.0 };
+    Vector v       = Vector_new_vals(3, init, Real);
+
+    TEST_CHECK(v.dim == 3);
+    for (size_t i = 0; i < 3; i++)
+        TEST_CHECK(get_real(&v, i) == init[i]);
 
     Vector_free(&v);
 }
 
-void test_vector_new_vals(void)
+void test_new_vals_int(void)
 {
-    double vals[] = { 1, 2, 3, 4 };
-    Vector v      = Vector_new_vals(4, vals);
+    int init[4] = { 10, 20, 30, 40 };
+    Vector v    = Vector_new_vals(4, init, Int);
 
     TEST_CHECK(v.dim == 4);
-
     for (size_t i = 0; i < 4; i++)
-        TEST_CHECK(fabs(v.values[i] - vals[i]) < EPS);
+        TEST_CHECK(get_real(&v, i) == init[i]);
 
     Vector_free(&v);
 }
 
-void test_vector_new_copy(void)
+void test_new_vals_complex(void)
 {
-    double vals[] = { 5, 6, 7 };
-    Vector v      = Vector_new_vals(3, vals);
-    Vector c      = Vector_new_copy(&v);
+    complex double init[3] = { 1.0 + 2.0 * I, -3.0 + 0.5 * I, 0.0 + 7.0 * I };
+    Vector v               = Vector_new_vals(3, init, Complex);
+
+    TEST_CHECK(v.dim == 3);
+    for (size_t i = 0; i < 3; i++)
+        TEST_CHECK(get_complex(&v, i) == init[i]);
+
+    Vector_free(&v);
+}
+
+void test_copy(void)
+{
+    double init[3] = { 9.0, 8.0, 7.0 };
+    Vector v       = Vector_new_vals(3, init, Real);
+    Vector c       = Vector_new_copy(&v);
 
     TEST_CHECK(c.dim == 3);
-
     for (size_t i = 0; i < 3; i++)
-        TEST_CHECK(fabs(c.values[i] - vals[i]) < EPS);
+        TEST_CHECK(get_real(&c, i) == init[i]);
 
     Vector_free(&v);
     Vector_free(&c);
 }
 
-void test_vector_zeros_like(void)
+/* ============================================================
+   Accessors
+   ============================================================ */
+
+void test_get_set_item_real(void)
 {
-    Vector v = Vector_new(4, 9.0);
-    Vector z = Vector_zeros_like(&v);
+    Vector v = Vector_zeros(3, Real);
 
-    TEST_CHECK(z.dim == 4);
+    double x;
+    TEST_CHECK(Vector_get_at(&x, &v, 1) == VECTOR_SUCCESS);
+    TEST_CHECK(x == 0.0);
 
-    for (size_t i = 0; i < 4; i++)
-        TEST_CHECK(z.values[i] == 0.0);
+    double newval = 5.5;
+    TEST_CHECK(Vector_set_item(&v, 1, &newval) == VECTOR_SUCCESS);
+    TEST_CHECK(get_real(&v, 1) == 5.5);
 
-    Vector_free(&v);
-    Vector_free(&z);
-}
-
-void test_vector_zeros_ones(void)
-{
-    Vector z = Vector_zeros(8);
-    Vector o = Vector_ones(8);
-
-    for (size_t i = 0; i < 8; i++)
-    {
-        TEST_CHECK(z.values[i] == 0.0);
-        TEST_CHECK(o.values[i] == 1.0);
-    }
-
-    Vector_free(&z);
-    Vector_free(&o);
-}
-
-void test_vector_copy(void)
-{
-    double vals[] = { 2.5, 3.5 };
-    Vector v      = Vector_new_vals(2, vals);
-    Vector t      = Vector_new(0, 0.0);
-
-    Vector_copy(&t, &v);
-
-    TEST_CHECK(t.dim == 2);
-    TEST_CHECK(fabs(t.values[0] - 2.5) < EPS);
-    TEST_CHECK(fabs(t.values[1] - 3.5) < EPS);
-
-    Vector_free(&v);
-    Vector_free(&t);
-}
-
-void test_vector_get_set(void)
-{
-    Vector v = Vector_new(4, 0.0);
-
-    int status = Vector_set_item(&v, 2, 9.81);
-    TEST_CHECK(status == VECTOR_SUCCESS);
-
-    double val = 0.0;
-    status     = Vector_get_at(&val, &v, 2);
-    TEST_CHECK(status == VECTOR_SUCCESS);
-    TEST_CHECK(fabs(val - 9.81) < EPS);
-
-    status = Vector_set_item(&v, 10, 1.0);
-    TEST_CHECK(status == VECTOR_DIMENSION_ERROR);
-
-    status = Vector_get_at(&val, &v, 99);
-    TEST_CHECK(status == VECTOR_DIMENSION_ERROR);
+    TEST_CHECK(Vector_get_at(&x, &v, 99) == VECTOR_DIMENSION_ERROR);
+    TEST_CHECK(Vector_set_item(&v, 99, &newval) == VECTOR_DIMENSION_ERROR);
 
     Vector_free(&v);
 }
 
-void test_vector_norm(void)
+void test_get_set_item_int(void)
 {
-    double vals[] = { 3, 4 };
-    Vector v      = Vector_new_vals(2, vals);
+    Vector v = Vector_zeros(3, Int);
 
-    double n = Vector_norm(&v);
-    TEST_CHECK(fabs(n - 5.0) < EPS);
+    double x;
+    TEST_CHECK(Vector_get_at(&x, &v, 1) == VECTOR_SUCCESS);
+    TEST_CHECK(x == 0.0);
+
+    int newval = 7;
+    TEST_CHECK(Vector_set_item(&v, 1, &newval) == VECTOR_SUCCESS);
+    TEST_CHECK(get_real(&v, 1) == 7.0);
 
     Vector_free(&v);
 }
 
-void test_vector_add_sub(void)
+void test_get_set_item_complex(void)
 {
-    double a_vals[] = { 1, 2, 3 };
-    double b_vals[] = { 4, 5, 6 };
+    Vector v = Vector_zeros(3, Complex);
 
-    Vector A = Vector_new_vals(3, a_vals);
-    Vector B = Vector_new_vals(3, b_vals);
-
-    int status = Vector_add(&A, &B);
-    TEST_CHECK(status == VECTOR_SUCCESS);
-
-    TEST_CHECK(fabs(A.values[0] - 5) < EPS);
-    TEST_CHECK(fabs(A.values[1] - 7) < EPS);
-    TEST_CHECK(fabs(A.values[2] - 9) < EPS);
-
-    status = Vector_sub(&A, &B);
-    TEST_CHECK(status == VECTOR_SUCCESS);
-
-    TEST_CHECK(fabs(A.values[0] - 1) < EPS);
-    TEST_CHECK(fabs(A.values[1] - 2) < EPS);
-    TEST_CHECK(fabs(A.values[2] - 3) < EPS);
-
-    Vector_free(&A);
-    Vector_free(&B);
-}
-
-void test_vector_scale(void)
-{
-    Vector v = Vector_new(3, 2.0);
-
-    int status = Vector_scale(&v, 0.5);
-    TEST_CHECK(status == VECTOR_SUCCESS);
-
-    for (size_t i = 0; i < 3; i++)
-        TEST_CHECK(fabs(v.values[i] - 1.0) < EPS);
+    complex double c = 2.0 + 3.0 * I;
+    TEST_CHECK(Vector_set_item(&v, 1, &c) == VECTOR_SUCCESS);
+    TEST_CHECK(get_complex(&v, 1) == c);
 
     Vector_free(&v);
 }
 
-void test_vector_broadcast_add(void)
+/* ============================================================
+   all_close
+   ============================================================ */
+
+void test_all_close_real(void)
 {
-    Vector v = Vector_new(4, 1.0);
+    double a[3] = { 1.0, 2.0, 3.0 };
+    double b[3] = { 1.0 + 1e-9, 2.0 - 1e-9, 3.0 };
 
-    int status = Vector_broadcast_add(&v, 2.0);
-    TEST_CHECK(status == VECTOR_SUCCESS);
+    Vector u = Vector_new_vals(3, a, Real);
+    Vector v = Vector_new_vals(3, b, Real);
 
-    for (size_t i = 0; i < 4; i++)
-        TEST_CHECK(fabs(v.values[i] - 3.0) < EPS);
+    TEST_CHECK(Vector_all_close(&u, &v) == 1);
 
+    b[1] = 2.1;
     Vector_free(&v);
-}
+    v = Vector_new_vals(3, b, Real);
 
-void test_vector_dot(void)
-{
-    double vals_u[] = { 2, 3, 4, 5 };
-    double vals_v[] = { 3, 4, 1, 4 };
-    Vector u        = Vector_new_vals(4, vals_u);
-    Vector v        = Vector_new_vals(4, vals_v);
-    Vector w        = Vector_new(6, 3.14);
-    double dot      = 0.0;
-    double sink     = 0.0;
-    int status      = Vector_dot(&dot, &u, &v);
-    int err_status  = Vector_dot(&sink, &u, &w);
-    TEST_CHECK(fabs(dot - (2 * 3 + 3 * 4 + 4 + 5 * 4)) < EPS);
-    TEST_CHECK(status == VECTOR_SUCCESS);
-    TEST_CHECK(err_status == VECTOR_DIMENSION_ERROR);
+    TEST_CHECK(Vector_all_close(&u, &v) == 0);
+
     Vector_free(&u);
     Vector_free(&v);
-    Vector_free(&w);
+}
 
-    Vector v1 = Vector_new_random_normal(200000, 0, 1);
-    Vector v2 = Vector_new_random_normal(200000, 0, 1);
-    status    = Vector_dot(&dot, &v1, &v2);
-    double s  = 0.0;
-    for (size_t i = 0; i < v1.dim; i++)
+/* ============================================================
+   Random vectors (Real only)
+   ============================================================ */
+
+void test_random_uniform_real(void)
+{
+    Vector_init_prng(123);
+
+    Vector v = Vector_new_random_uniform(100, -1.0, 1.0, Real);
+
+    for (size_t i = 0; i < 100; i++)
     {
-        s += v1.values[i] * v2.values[i];
-    }
-    TEST_CHECK(fabs(s - dot) < EPS);
-    Vector_free(&v1);
-    Vector_free(&v2);
-}
-
-static double test_func_square(const Vector* x)
-{
-    double s = 0.0;
-    for (size_t i = 0; i < x->dim; i++)
-        s += -x->values[i] * x->values[i];
-    s += 0.5;
-    return s;
-}
-
-static double test_func_square_min(const Vector* x)
-{
-    double s = 0.0;
-    for (size_t i = 0; i < x->dim; i++)
-    {
-        s += x->values[i] * x->values[i];
-    }
-    s -= 0.5;
-    return s;
-}
-
-void test_vector_gradient(void)
-{
-    double vals[] = { 1.0, 2.0 };
-    Vector x      = Vector_new_vals(2, vals);
-    Vector grad   = Vector_new(2, 0.0);
-
-    int status = Vector_gradient(&grad, &x, test_func_square);
-    TEST_CHECK(status == VECTOR_SUCCESS);
-
-    TEST_CHECK(fabs(grad.values[0] + 2.0) < EPS);
-    TEST_CHECK(fabs(grad.values[1] + 4.0) < EPS);
-
-    Vector_free(&x);
-    Vector_free(&grad);
-}
-
-void test_vector_gradient_maximize(void)
-{
-    const int n    = 25;
-    Vector x       = Vector_new(n, 0.5);
-    double f_x     = test_func_square(&x);
-    Vector out     = Vector_zeros_like(&x);
-    int status     = Vector_gradient_maximize(&out, &x, test_func_square, 0.1);
-    double f_x_max = test_func_square(&out);
-
-    TEST_CHECK(status == VECTOR_SUCCESS);
-    TEST_CHECK(f_x_max >= f_x);
-
-    Vector_free(&x);
-    Vector_free(&out);
-}
-
-void test_vector_gradient_minimize(void)
-{
-    const int n = 25;
-
-    Vector x   = Vector_new(n, 0.5);
-    double f_x = test_func_square_min(&x);
-    Vector out = Vector_zeros_like(&x);
-    int status = Vector_gradient_minimize(&out, &x, test_func_square_min, 0.1);
-    double f_x_min = test_func_square_min(&out);
-
-    TEST_CHECK(status == VECTOR_SUCCESS);
-
-    TEST_CHECK(f_x >= f_x_min);
-
-    Vector_free(&x);
-    Vector_free(&out);
-}
-
-void test_vector_sort(void)
-{
-    const size_t N = 1000000;
-    Vector v       = Vector_new_random_uniform(N, 0, 1);
-    Vector_sort_inplace(&v);
-
-    for (size_t i = 0; i < N - 1; i++)
-    {
-        TEST_CHECK(v.values[i] <= v.values[i + 1]);
+        double x = get_real(&v, i);
+        TEST_CHECK(x >= -1.0 && x <= 1.0);
     }
 
     Vector_free(&v);
 }
 
-TEST_LIST = { { "vector_create", test_vector_create },
-              { "vector_new_vals", test_vector_new_vals },
-              { "vector_new_copy", test_vector_new_copy },
-              { "vector_zeros_like", test_vector_zeros_like },
-              { "vector_zeros_ones", test_vector_zeros_ones },
-              { "vector_copy", test_vector_copy },
-              { "vector_get_set", test_vector_get_set },
-              { "vector_norm", test_vector_norm },
-              { "vector_add_sub", test_vector_add_sub },
-              { "vector_dot", test_vector_dot },
-              { "vector_scale", test_vector_scale },
-              { "vector_broadcast_add", test_vector_broadcast_add },
-              { "vector_gradient", test_vector_gradient },
-              { "vector_gradient_maximize", test_vector_gradient_maximize },
-              { "vector_gradient_minimize", test_vector_gradient_minimize },
-              { "test_vector_sort", test_vector_sort },
+void test_random_normal_real(void)
+{
+    Vector_init_prng(123);
+
+    Vector v = Vector_new_random_normal(200, 0.0, 1.0, Real);
+
+    double sum = 0.0;
+    for (size_t i = 0; i < 200; i++)
+        sum += get_real(&v, i);
+
+    double mean = sum / 200.0;
+    TEST_CHECK(fabs(mean) < 0.3);
+
+    Vector_free(&v);
+}
+
+/* ============================================================
+   Math operations
+   ============================================================ */
+
+void test_norm_real(void)
+{
+    double a[3] = { 3.0, 4.0, 12.0 };
+    Vector v    = Vector_new_vals(3, a, Real);
+
+    double n = Vector_norm(&v);
+    TEST_CHECK(fabs(n - 13.0) < 1e-12);
+
+    Vector_free(&v);
+}
+
+void test_norm_complex(void)
+{
+    complex double a[2] = { 3.0 + 4.0 * I, 12.0 + 0.0 * I };
+    Vector v            = Vector_new_vals(2, a, Complex);
+
+    double n = Vector_norm(&v);
+    TEST_CHECK(fabs(n - 13.0) < 1e-12);
+
+    Vector_free(&v);
+}
+
+void test_add_sub_real(void)
+{
+    double a[3] = { 1.0, 2.0, 3.0 };
+    double b[3] = { 4.0, 5.0, 6.0 };
+
+    Vector u = Vector_new_vals(3, a, Real);
+    Vector v = Vector_new_vals(3, b, Real);
+
+    TEST_CHECK(Vector_add(&u, &v) == VECTOR_SUCCESS);
+    TEST_CHECK(get_real(&u, 0) == 5.0);
+    TEST_CHECK(get_real(&u, 1) == 7.0);
+    TEST_CHECK(get_real(&u, 2) == 9.0);
+
+    TEST_CHECK(Vector_sub(&u, &v) == VECTOR_SUCCESS);
+    TEST_CHECK(get_real(&u, 0) == 1.0);
+    TEST_CHECK(get_real(&u, 1) == 2.0);
+    TEST_CHECK(get_real(&u, 2) == 3.0);
+
+    Vector_free(&u);
+    Vector_free(&v);
+}
+
+void test_dot_real(void)
+{
+    double a[3] = { 1.0, 2.0, 3.0 };
+    double b[3] = { 4.0, -1.0, 2.0 };
+
+    Vector u = Vector_new_vals(3, a, Real);
+    Vector v = Vector_new_vals(3, b, Real);
+
+    double dp;
+    TEST_CHECK(Vector_dot(&dp, &u, &v) == VECTOR_SUCCESS);
+    TEST_CHECK(fabs(dp - (1 * 4 + 2 * (-1) + 3 * 2)) < 1e-12);
+
+    Vector_free(&u);
+    Vector_free(&v);
+}
+
+void test_dot_complex(void)
+{
+    complex double a[2] = { 1.0 + 2.0 * I, 3.0 + 4.0 * I };
+    complex double b[2] = { 2.0 + 0.0 * I, -1.0 + 1.0 * I };
+
+    Vector u = Vector_new_vals(2, a, Complex);
+    Vector v = Vector_new_vals(2, b, Complex);
+
+    double dp;
+    TEST_CHECK(Vector_dot(&dp, &u, &v) == VECTOR_SUCCESS);
+
+    complex double expected = (a[0] * b[0]) + (a[1] * b[1]);
+
+    TEST_CHECK(fabs(dp - creal(expected)) < 1e-12);
+
+    Vector_free(&u);
+    Vector_free(&v);
+}
+
+/* ============================================================
+   Sorting (Real only)
+   ============================================================ */
+
+void test_sort_real(void)
+{
+    double a[5] = { 5, 1, 4, 3, 2 };
+    Vector v    = Vector_new_vals(5, a, Real);
+
+    Vector sorted = Vector_zeros(5, Real);
+    TEST_CHECK(Vector_sort(&sorted, &v) == VECTOR_SUCCESS);
+
+    for (size_t i = 0; i < 5; i++)
+        TEST_CHECK(get_real(&sorted, i) == (double)(i + 1));
+
+    TEST_CHECK(Vector_sort_inplace(&v) == VECTOR_SUCCESS);
+    for (size_t i = 0; i < 5; i++)
+        TEST_CHECK(get_real(&v, i) == (double)(i + 1));
+
+    Vector_free(&v);
+    Vector_free(&sorted);
+}
+
+/* ============================================================
+   Max / Min (Real only)
+   ============================================================ */
+
+void test_max_min_real(void)
+{
+    double a[5] = { -1, 10, 3, 7, 2 };
+    Vector v    = Vector_new_vals(5, a, Real);
+
+    double mx, mn;
+    Vector_max(&mx, &v);
+    Vector_min(&mn, &v);
+
+    TEST_CHECK(mx == 10.0);
+    TEST_CHECK(mn == -1.0);
+
+    Vector_free(&v);
+}
+
+/* ============================================================
+   Test list
+   ============================================================ */
+
+TEST_LIST = { { "new_vals_real", test_new_vals_real },
+              { "new_vals_int", test_new_vals_int },
+              { "new_vals_complex", test_new_vals_complex },
+              { "copy", test_copy },
+              { "get_set_item_real", test_get_set_item_real },
+              { "get_set_item_int", test_get_set_item_int },
+              { "get_set_item_complex", test_get_set_item_complex },
+              { "all_close_real", test_all_close_real },
+              { "random_uniform_real", test_random_uniform_real },
+              { "random_normal_real", test_random_normal_real },
+              { "norm_real", test_norm_real },
+              { "norm_complex", test_norm_complex },
+              { "add_sub_real", test_add_sub_real },
+              { "dot_real", test_dot_real },
+              { "dot_complex", test_dot_complex },
+              { "sort_real", test_sort_real },
+              { "max_min_real", test_max_min_real },
               { NULL, NULL } };

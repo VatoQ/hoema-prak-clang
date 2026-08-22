@@ -36,8 +36,16 @@ void track_performance(const size_t runs,
         long nanos             = end.tv_nsec - start.tv_nsec;
         double elapsed         = seconds + nanos * 1e-9;
         double flop_per_second = (double)FLOPS / elapsed;
-        printf("Run %d: GFLOP/s = %lf", r, flop_per_second / 1000000000);
-        printf(", Runtime = %lf", elapsed);
+        if (r < 10)
+        {
+            printf("Run  ");
+        }
+        else
+        {
+            printf("Run ");
+        }
+        printf("%d: GFLOP/s = %.3lf", r, flop_per_second / 1000000000);
+        printf(", Runtime = %.7lf", elapsed);
         if (r >= ignore)
         {
             runtimes[r - ignore]  = elapsed;
@@ -54,8 +62,8 @@ void track_performance(const size_t runs,
     rt_sum /= (runs - ignore);
     f_sum /= (runs - ignore);
 
-    printf("GFLOP/s (average): %lf\n", f_sum / 1000000000);
-    printf("Runtime (average): %lf\n", rt_sum);
+    printf("GFLOP/s (average): %.3lf\n", f_sum / 1000000000);
+    printf("Runtime (average): %.3lf\n", rt_sum);
     printf("\n");
 
     free(runtimes);
