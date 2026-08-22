@@ -60,7 +60,7 @@ $(BIN_DIR)/test_%: $(TEST_DIR)/test_%.c $(CORE_OBJ) | $(BIN_DIR)
 
 OPT_REPORT = opt_report.txt
 .PHONY: opt_report
-opt_report: $(OPT_REPORT)
+opt_report: 
 	@echo "======================================"> $(OPT_REPORT)
 	@echo "    OPTIMIZATION REPORT" >> $(OPT_REPORT)
 	@echo "======================================">> $(OPT_REPORT)
