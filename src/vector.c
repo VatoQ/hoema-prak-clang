@@ -1478,8 +1478,8 @@ static void _scale_real(size_t dim, void* values, const void* lambda_ptr)
 
 static void _scale_cmpl(size_t dim, void* values, const void* lambda_ptr)
 {
-    ACCESS_VOID(real_t, lambda, lambda_ptr);
-    real_t* values_t = values;
+    ACCESS_VOID(complex_t, lambda, lambda_ptr);
+    complex_t* values_t = values;
 #pragma omp simd
     SCALE(dim, values_t[n], *lambda);
 }
