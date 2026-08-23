@@ -343,7 +343,7 @@ void Matrix_Matrix_dot_active(Matrix* H,
                               const Matrix* Q,
                               size_t active);
 
-int Matrix_inner_dot(double* target, const Matrix* A, const Matrix* B);
+int Matrix_inner_dot(void* target, const Matrix* A, const Matrix* B);
 
 int Matrix_Hadamard_dot(Matrix* target, const Matrix* A, const Matrix* B);
 
