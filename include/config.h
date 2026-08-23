@@ -12,7 +12,7 @@
 // #define DEBUG
 
 #ifdef DEBUG
-#define IF_DEBUG(code)                                                         \
+#define DEBUG_CODE(code)                                                       \
     do                                                                         \
     {                                                                          \
         code;                                                                  \
@@ -20,7 +20,7 @@
 
 #define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__);
 #else
-#define IF_DEBUG(code)                                                         \
+#define DEBUG_CODE(code)                                                       \
     do                                                                         \
     {                                                                          \
     } while (0)
