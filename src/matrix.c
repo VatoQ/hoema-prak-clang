@@ -4,7 +4,6 @@
 #include "../include/prng.h"
 #include "../include/vector.h"
 #include <complex.h>
-#include <iso646.h>
 #include <limits.h>
 #include <math.h>
 #include <omp.h>
@@ -846,38 +845,11 @@ void Matrix_min(void* target, const Matrix* M)
     _min_helpers[M->dt](target, M);
 }
 
-static void _print_int(void* value)
-{
-    long* val_type = (long*)value;
-    char* sep      = (*val_type > 0) ? "  " : " ";
-    printf("%zu%s", *val_type, sep);
-}
-
-static void _print_real(void* value)
-{
-    double* val_type = (double*)value;
-    char* sep        = (*val_type > 0) ? "  " : " ";
-    printf("%f%s", *val_type, sep);
-}
-
-static void _print_cmpl(void* value)
-{
-    complex double* val_type = (complex double*)value;
-    char* sep                = (creal(*val_type) > 0) ? "  " : " ";
-    PRINT_COMPLEX(*val_type);
-    puts(sep);
-}
-
-static void (*_printers[TYPE_COUNT])(void* value) = {
-    [Int]     = _print_int,
-    [Real]    = _print_real,
-    [Complex] = _print_cmpl,
-};
-
-void Matrix_print(const Matrix* M)
+static void _print_int(const Matrix* M)
 {
     const size_t m = M->m, n = M->n;
     int status = 0;
+    ACCESS_VOID(int_t, M_values, M->values);
     for (size_t i = 0; i < m; i++)
     {
         for (size_t j = 0; j < n; j++)
@@ -895,7 +867,9 @@ void Matrix_print(const Matrix* M)
                 printf("| ");
             }
 
-            _printers[M->dt](M->values + i * M->n + j);
+            int_t val = M_values[i * m + j];
+            char* sep = (val > 0) ? "  " : " ";
+            printf("%zu%s", val, sep);
 
             if (j == n - 1 && i == 0)
             {
@@ -916,6 +890,115 @@ void Matrix_print(const Matrix* M)
     {
         Log_log("An unknown problem at Matrix_print", LOG_RT_WARNING);
     }
+}
+
+static void _print_real(const Matrix* M)
+{
+    const size_t m = M->m, n = M->n;
+    int status = 0;
+    ACCESS_VOID(real_t, M_values, M->values);
+    for (size_t i = 0; i < m; i++)
+    {
+        for (size_t j = 0; j < n; j++)
+        {
+            if (j == 0 && i == 0)
+            {
+                printf("/ ");
+            }
+            else if (j == 0 && i == m - 1)
+            {
+                printf("\\ ");
+            }
+            else if (j == 0)
+            {
+                printf("| ");
+            }
+
+            real_t val = M_values[i * m + j];
+            char* sep  = (val > 0) ? "  " : " ";
+            printf("%f%s", val, sep);
+
+            if (j == n - 1 && i == 0)
+            {
+                printf("\\");
+            }
+            else if (j == n - 1 && i == m - 1)
+            {
+                printf("/");
+            }
+            else if (j == n - 1)
+            {
+                printf("|");
+            }
+        }
+        printf("\n");
+    }
+    if (status != MATRIX_SUCCESS * m * n)
+    {
+        Log_log("An unknown problem at Matrix_print", LOG_RT_WARNING);
+    }
+}
+
+static void _print_cmpl(const Matrix* M)
+{
+    const size_t m = M->m, n = M->n;
+    int status = 0;
+    ACCESS_VOID(complex_t, M_values, M->values);
+    for (size_t i = 0; i < m; i++)
+    {
+        for (size_t j = 0; j < n; j++)
+        {
+            if (j == 0 && i == 0)
+            {
+                printf("/ ");
+            }
+            else if (j == 0 && i == m - 1)
+            {
+                printf("\\ ");
+            }
+            else if (j == 0)
+            {
+                printf("| ");
+            }
+
+            complex_t val   = M_values[i * m + j];
+            const char* sep = (creal(val) > 0) ? "  " : " ";
+            PRINT_COMPLEX(val);
+            printf("%s", sep);
+
+            if (j == n - 1 && i == 0)
+            {
+                printf("\\");
+            }
+            else if (j == n - 1 && i == m - 1)
+            {
+                printf("/");
+            }
+            else if (j == n - 1)
+            {
+                printf("|");
+            }
+        }
+        printf("\n");
+    }
+    if (status != MATRIX_SUCCESS * m * n)
+    {
+        Log_log("An unknown problem at Matrix_print", LOG_RT_WARNING);
+    }
+}
+
+static void (*_printers[TYPE_COUNT])(const Matrix* M) = {
+    [Int]     = _print_int,
+    [Real]    = _print_real,
+    [Complex] = _print_cmpl,
+};
+
+void Matrix_print(const Matrix* M)
+{
+    const size_t m = M->m, n = M->n;
+    int status = 0;
+
+    _printers[M->dt](M);
 }
 
 static void _frobenius_helper_int(void* target, const Matrix* M)
@@ -2286,48 +2369,48 @@ int Matrix_Matrix_dot_jordan(Matrix* target, const Matrix* M1, const Matrix* M2)
 
 static void _outer_int_s(Matrix* target, const Vector* a, const Vector* b)
 {
-    ACCESS_VOID(int_t, a_values, a);
-    ACCESS_VOID(int_t, b_values, b);
+    ACCESS_VOID(int_t, a_values, a->values);
+    ACCESS_VOID(int_t, b_values, b->values);
+    ACCESS_VOID(int_t, target_values, target->values);
 
     for (size_t m = 0; m < a->dim; m++)
     {
         for (size_t n = 0; n < b->dim; n++)
         {
-            int_t value = a_values[m] * b_values[n];
-            ACCESS_VOID(int_t, t_val, target->values + m * target->n + n);
-            *t_val = value;
+            int_t value                      = a_values[m] * b_values[n];
+            target_values[m * target->n + n] = value;
         }
     }
 }
 
 static void _outer_real_s(Matrix* target, const Vector* a, const Vector* b)
 {
-    ACCESS_VOID(real_t, a_values, a);
-    ACCESS_VOID(real_t, b_values, b);
+    ACCESS_VOID(real_t, a_values, a->values);
+    ACCESS_VOID(real_t, b_values, b->values);
+    ACCESS_VOID(real_t, target_values, target->values);
 
     for (size_t m = 0; m < a->dim; m++)
     {
         for (size_t n = 0; n < b->dim; n++)
         {
-            real_t value = a_values[m] * b_values[n];
-            ACCESS_VOID(real_t, t_val, target->values + m * target->n + n);
-            *t_val = value;
+            real_t value                     = a_values[m] * b_values[n];
+            target_values[m * target->n + n] = value;
         }
     }
 }
 
 static void _outer_cmpl_s(Matrix* target, const Vector* a, const Vector* b)
 {
-    ACCESS_VOID(complex_t, a_values, a);
-    ACCESS_VOID(complex_t, b_values, b);
+    ACCESS_VOID(complex_t, a_values, a->values);
+    ACCESS_VOID(complex_t, b_values, b->values);
+    ACCESS_VOID(complex_t, target_values, target->values);
 
     for (size_t m = 0; m < a->dim; m++)
     {
         for (size_t n = 0; n < b->dim; n++)
         {
-            complex_t value = a_values[m] * b_values[n];
-            ACCESS_VOID(complex_t, t_val, target->values + m * target->n + n);
-            *t_val = value;
+            real_t value                     = a_values[m] * b_values[n];
+            target_values[m * target->n + n] = value;
         }
     }
 }
@@ -2342,51 +2425,51 @@ static void (*_outer_units_s[TYPE_COUNT])(Matrix* target,
 
 static void _outer_int_p(Matrix* target, const Vector* a, const Vector* b)
 {
-    ACCESS_VOID(int_t, a_values, a);
-    ACCESS_VOID(int_t, b_values, b);
+    ACCESS_VOID(int_t, a_values, a->values);
+    ACCESS_VOID(int_t, b_values, b->values);
+    ACCESS_VOID(int_t, target_values, target->values);
 
 #pragma omp parallel for // parallel outer basically always faster
     for (size_t m = 0; m < a->dim; m++)
     {
         for (size_t n = 0; n < b->dim; n++)
         {
-            int_t value = a_values[m] * b_values[n];
-            ACCESS_VOID(int_t, t_val, target->values + m * target->n + n);
-            *t_val = value;
+            int_t value                      = a_values[m] * b_values[n];
+            target_values[m * target->n + n] = value;
         }
     }
 }
 
 static void _outer_real_p(Matrix* target, const Vector* a, const Vector* b)
 {
-    ACCESS_VOID(real_t, a_values, a);
-    ACCESS_VOID(real_t, b_values, b);
+    ACCESS_VOID(real_t, a_values, a->values);
+    ACCESS_VOID(real_t, b_values, b->values);
+    ACCESS_VOID(real_t, target_values, target->values);
 
 #pragma omp parallel for // parallel outer basically always faster
     for (size_t m = 0; m < a->dim; m++)
     {
         for (size_t n = 0; n < b->dim; n++)
         {
-            real_t value = a_values[m] * b_values[n];
-            ACCESS_VOID(real_t, t_val, target->values + m * target->n + n);
-            *t_val = value;
+            real_t value                     = a_values[m] * b_values[n];
+            target_values[m * target->n + n] = value;
         }
     }
 }
 
 static void _outer_cmpl_p(Matrix* target, const Vector* a, const Vector* b)
 {
-    ACCESS_VOID(complex_t, a_values, a);
-    ACCESS_VOID(complex_t, b_values, b);
+    ACCESS_VOID(complex_t, a_values, a->values);
+    ACCESS_VOID(complex_t, b_values, b->values);
+    ACCESS_VOID(complex_t, target_values, target->values);
 
 #pragma omp parallel for // parallel outer basically always faster
     for (size_t m = 0; m < a->dim; m++)
     {
         for (size_t n = 0; n < b->dim; n++)
         {
-            complex_t value = a_values[m] * b_values[n];
-            ACCESS_VOID(complex_t, t_val, target->values + m * target->n + n);
-            *t_val = value;
+            real_t value                     = a_values[m] * b_values[n];
+            target_values[m * target->n + n] = value;
         }
     }
 }
@@ -2430,184 +2513,366 @@ int Matrix_Vector_outer_square(Matrix* target, const Vector* v)
     return Matrix_Vector_outer(target, v, v);
 }
 
-// int Matrix_Hessenberg(Matrix* H, const Matrix* A)
-// {
-//     size_t m = A->m;
-//     size_t n = A->n;
-//     if (n != m)
-//     {
-//         return MATRIX_DIMENSION_ERROR;
-//     }
-//
-//     Matrix_copy(H, A);
-//     // Matrix_prepare_target(H, m, n);
-//     double* restrict H_values = H->values;
-//
-//     for (size_t k = 0; k < m - 2; k++)
-//     {
-//         size_t rows = m - (k + 1);
-//
-//         Vector x;
-//         x.values = NULL;
-//         // x.values = malloc(rows * sizeof(double));
-//         posix_memalign((void**)&x.values, 32, rows * sizeof(double));
-//         x.dim        = rows;
-//         double normx = 0.0;
-//
-//         for (size_t i = 0; i < rows; i++)
-//         {
-//             double val  = H_values[(k + 1 + i) * n + k];
-//             x.values[i] = val;
-//             normx += val * val;
-//         }
-//         if (normx == 0.0)
-//         {
-//             Vector_free(&x);
-//             continue;
-//         }
-//         normx = sqrt(normx);
-//
-//         double sign = (x.values[0] >= 0.0) ? 1.0 : -1.0;
-//
-//         Vector e1    = Vector_zeros(rows, Real);
-//         e1.values[0] = 1.0;
-//
-//         Vector v;
-//         // v.values = malloc(x.dim * sizeof(double));
-//         v.values = NULL;
-//         posix_memalign((void**)&v.values, 32, x.dim * sizeof(double));
-//         v.dim = x.dim;
-//         Vector_copy(&v, &x);
-//         Vector_scale(&e1, sign * normx);
-//         Vector_add(&v, &e1);
-//         Vector_free(&e1);
-//
-//         double vnorm = 0.0;
-//
-//         for (size_t i = 0; i < v.dim; i++)
-//         {
-//             vnorm += v.values[i] * v.values[i];
-//         }
-//         vnorm = sqrt(vnorm);
-//
-//         // Vector_scale(&v, 1.0 / vnorm);
-//         for (size_t i = 0; i < v.dim; i++)
-//         {
-//             v.values[i] /= vnorm;
-//         }
-//
-//         for (size_t j = k; j < n; j++)
-//         {
-//             double dot = 0.0;
-//             for (size_t i = 0; i < rows; i++)
-//             {
-//                 dot += v.values[i] * H_values[(k + 1 + i) * n + j];
-//             }
-//
-//             for (size_t i = 0; i < rows; i++)
-//             {
-//                 H_values[(k + 1 + i) * n + j] -= 2.0 * v.values[i] * dot;
-//             }
-//         }
-//
-//         for (size_t i = 0; i < m; i++)
-//         {
-//             double dot = 0.0;
-//             for (size_t r = 0; r < rows; r++)
-//             {
-//                 dot += H_values[i * n + (k + 1 + r)] * v.values[r];
-//             }
-//             for (size_t r = 0; r < rows; r++)
-//             {
-//                 H_values[i * n + (k + 1 + r)] -= 2.0 * dot * v.values[r];
-//             }
-//         }
-//         Vector_free(&v);
-//         Vector_free(&x);
-//     }
-//     return MATRIX_SUCCESS;
-// }
-
-void Matrix_QR_hessenberg(Matrix* Q, Matrix* R, Matrix* H, size_t active)
+static void _hess_1_real(Matrix* H, const Matrix* A)
 {
-    size_t n = H->n;
+    size_t m = A->m;
+    size_t n = A->n;
+    Matrix_copy(H, A);
+    // Matrix_prepare_target(H, m, n);
+    real_t* restrict H_values = H->values;
+
+    for (size_t k = 0; k < m - 2; k++)
+    {
+        size_t rows = m - (k + 1);
+
+        Vector x;
+        x.values = NULL;
+        // x.values = malloc(rows * sizeof(double));
+        posix_memalign((void**)&x.values, 32, rows * elem_size(Real));
+        x.dim        = rows;
+        real_t normx = 0.0;
+        ACCESS_VOID(real_t, x_values, x.values);
+
+        for (size_t i = 0; i < rows; i++)
+        {
+            real_t val  = H_values[(k + 1 + i) * n + k];
+            x_values[i] = val;
+            normx += val * val;
+        }
+        if (normx == 0.0)
+        {
+            Vector_free(&x);
+            continue;
+        }
+        normx = sqrt(normx);
+
+        real_t sign = (x_values[0] >= 0.0) ? 1.0 : -1.0;
+
+        Vector e1 = Vector_zeros(rows, Real);
+        ACCESS_VOID(real_t, e1_values, e1.values);
+        e1_values[0] = 1.0;
+
+        Vector v;
+        // v.values = malloc(x.dim * sizeof(double));
+        v.values = NULL;
+        posix_memalign((void**)&v.values, 32, x.dim * elem_size(Real));
+        v.dim = x.dim;
+        Vector_copy(&v, &x);
+        real_t prod = sign * normx;
+        Vector_scale(&e1, &prod);
+        Vector_add(&v, &e1);
+        Vector_free(&e1);
+        ACCESS_VOID(real_t, v_values, v.values);
+
+        real_t vnorm = 0.0;
+
+        for (size_t i = 0; i < v.dim; i++)
+        {
+            vnorm += v_values[i] * v_values[i];
+        }
+        vnorm = sqrt(vnorm);
+
+        // Vector_scale(&v, 1.0 / vnorm);
+        for (size_t i = 0; i < v.dim; i++)
+        {
+            v_values[i] /= vnorm;
+        }
+
+        for (size_t j = k; j < n; j++)
+        {
+            real_t dot = 0.0;
+            for (size_t i = 0; i < rows; i++)
+            {
+                dot += v_values[i] * H_values[(k + 1 + i) * n + j];
+            }
+
+            for (size_t i = 0; i < rows; i++)
+            {
+                H_values[(k + 1 + i) * n + j] -= 2.0 * v_values[i] * dot;
+            }
+        }
+
+        for (size_t i = 0; i < m; i++)
+        {
+            real_t dot = 0.0;
+            for (size_t r = 0; r < rows; r++)
+            {
+                dot += H_values[i * n + (k + 1 + r)] * v_values[r];
+            }
+            for (size_t r = 0; r < rows; r++)
+            {
+                H_values[i * n + (k + 1 + r)] -= 2.0 * dot * v_values[r];
+            }
+        }
+        Vector_free(&v);
+        Vector_free(&x);
+    }
+}
+
+static void _hess_1_cmpl(Matrix* H, const Matrix* A)
+{
+    size_t m = A->m;
+    size_t n = A->n;
+    Matrix_copy(H, A);
+    // Matrix_prepare_target(H, m, n);
+    complex_t* restrict H_values = H->values;
+
+    for (size_t k = 0; k < m - 2; k++)
+    {
+        size_t rows = m - (k + 1);
+
+        Vector x;
+        x.values = NULL;
+        // x.values = malloc(rows * sizeof(double));
+        posix_memalign((void**)&x.values, 32, rows * elem_size(Complex));
+        x.dim        = rows;
+        real_t normx = 0.0;
+        ACCESS_VOID(complex_t, x_values, x.values);
+
+        for (size_t i = 0; i < rows; i++)
+        {
+            complex_t val      = H_values[(k + 1 + i) * n + k];
+            x_values[i]        = val;
+            complex_t val_conj = creal(val) - cimag(val) * I;
+            normx += creal(val * val_conj);
+        }
+        if (normx == 0.0)
+        {
+            Vector_free(&x);
+            continue;
+        }
+        normx = sqrt(normx);
+
+        complex_t sign = (creal(x_values[0]) >= 0.0) ? 1.0 : -1.0;
+
+        Vector e1 = Vector_zeros(rows, Real);
+        ACCESS_VOID(complex_t, e1_values, e1.values);
+        e1_values[0] = 1.0;
+
+        Vector v;
+        // v.values = malloc(x.dim * sizeof(double));
+        v.values = NULL;
+        posix_memalign((void**)&v.values, 32, x.dim * elem_size(Complex));
+        v.dim = x.dim;
+        Vector_copy(&v, &x);
+        complex_t prod = sign * normx;
+        Vector_scale(&e1, &prod);
+        Vector_add(&v, &e1);
+        Vector_free(&e1);
+        ACCESS_VOID(complex_t, v_values, v.values);
+
+        complex_t vnorm = 0.0;
+
+        for (size_t i = 0; i < v.dim; i++)
+        {
+            vnorm += v_values[i] * v_values[i];
+        }
+        vnorm = sqrt(vnorm);
+
+        // Vector_scale(&v, 1.0 / vnorm);
+        for (size_t i = 0; i < v.dim; i++)
+        {
+            v_values[i] /= vnorm;
+        }
+
+        for (size_t j = k; j < n; j++)
+        {
+            complex_t dot = 0.0;
+            for (size_t i = 0; i < rows; i++)
+            {
+                dot += v_values[i] * H_values[(k + 1 + i) * n + j];
+            }
+
+            for (size_t i = 0; i < rows; i++)
+            {
+                H_values[(k + 1 + i) * n + j] -= 2.0 * v_values[i] * dot;
+            }
+        }
+
+        for (size_t i = 0; i < m; i++)
+        {
+            complex_t dot = 0.0;
+            for (size_t r = 0; r < rows; r++)
+            {
+                dot += H_values[i * n + (k + 1 + r)] * v_values[r];
+            }
+            for (size_t r = 0; r < rows; r++)
+            {
+                H_values[i * n + (k + 1 + r)] -= 2.0 * dot * v_values[r];
+            }
+        }
+        Vector_free(&v);
+        Vector_free(&x);
+    }
+}
+
+static void (*_hess_1_units[TYPE_COUNT])(Matrix* H, const Matrix* A) = {
+    [Real]    = _hess_1_real,
+    [Complex] = _hess_1_cmpl,
+};
+
+int Matrix_Hessenberg(Matrix* H, const Matrix* A)
+{
+    if (A->m != A->n)
+    {
+        return MATRIX_DIMENSION_ERROR;
+    }
+    _hess_1_units[A->dt](H, A);
+
+    return MATRIX_SUCCESS;
+}
+
+static void _qr_hess_real(Matrix* Q,
+                          Matrix* R,
+                          Matrix* H,
+                          size_t active,
+                          const size_t n)
+{
+    ACCESS_VOID(real_t, R_values, R->values);
+    ACCESS_VOID(real_t, Q_values, Q->values);
     for (size_t i = 0; i < n; i++)
     {
         for (size_t j = 0; j < n; j++)
         {
-            double* Q_val = Q->values + i * n + j;
+            real_t* Q_val = Q_values + i * n + j;
             *Q_val        = (i == j ? 1.0 : 0.0);
-            // Q->values[i * n + j] = (i == j ? 1.0 : 0.0);
         }
     }
     Matrix_copy(R, H);
     for (size_t i = 0; i < active - 1; i++)
     {
-        double* a = R->values + i * n + i;
-        double* b = R->values + (i + 1) * n + i;
+        real_t* a = R_values + i * n + i;
+        real_t* b = R_values + (i + 1) * n + i;
 
         if (fabs(*b) < 1e-15)
             continue;
 
         // Compute Givens rotation
-        double r = hypot(*a, *b);
-        double c = *a / r;
-        double s = -*b / r;
+        real_t r = hypot(*a, *b);
+        real_t c = *a / r;
+        real_t s = -*b / r;
 
         // Apply Givens rotation to R (right multiplication)
         for (size_t j = i; j < active; j++)
         {
-            double* t1     = R->values + i * n + j;
-            double* t2     = R->values + (i + 1) * n + j;
-            double* R_val1 = R->values + i * n + j;
-            double* R_val2 = R->values + (i + 1) * n + j;
+            real_t* t1     = R_values + i * n + j;
+            real_t* t2     = R_values + (i + 1) * n + j;
+            real_t* R_val1 = R_values + i * n + j;
+            real_t* R_val2 = R_values + (i + 1) * n + j;
             *R_val1        = c * *t1 - s * *t2;
             *R_val2        = s * *t1 + c * *t2;
-            // R->values[i * n + j]       = c * *t1 - s * *t2;
-            // R->values[(i + 1) * n + j] = s * *t1 + c * *t2;
         }
 
         // Apply Givens rotation to Q (accumulate Q)
         for (size_t j = 0; j < active; j++)
         {
-            double* t1     = Q->values + j * n + i;
-            double* t2     = Q->values + j * n + (i + 1);
-            double* Q_val1 = Q->values + j * n + i;
-            double* Q_val2 = Q->values + j * n + (i + 1);
+            real_t* t1     = Q_values + j * n + i;
+            real_t* t2     = Q_values + j * n + (i + 1);
+            real_t* Q_val1 = Q_values + j * n + i;
+            real_t* Q_val2 = Q_values + j * n + (i + 1);
             *Q_val1        = c * *t1 - s * *t2;
             *Q_val2        = s * *t1 + c * *t2;
-            // Q->values[j * n + i]       = c * t1 - s * t2;
-            // Q->values[j * n + (i + 1)] = s * t1 + c * t2;
         }
     }
 }
 
-void Matrix_Matrix_dot_active(Matrix* H,
-                              const Matrix* R,
-                              const Matrix* Q,
-                              size_t active)
+static void _qr_hess_cmpl(Matrix* Q,
+                          Matrix* R,
+                          Matrix* H,
+                          size_t active,
+                          const size_t n)
 {
-    size_t n = H->n;
+    ACCESS_VOID(complex_t, R_values, R->values);
+    ACCESS_VOID(complex_t, Q_values, Q->values);
+    for (size_t i = 0; i < n; i++)
+    {
+        for (size_t j = 0; j < n; j++)
+        {
+            complex_t* Q_val = Q_values + i * n + j;
+            *Q_val           = (i == j ? 1.0 : 0.0);
+        }
+    }
+    Matrix_copy(R, H);
+    for (size_t i = 0; i < active - 1; i++)
+    {
+        complex_t* a = R_values + i * n + i;
+        complex_t* b = R_values + (i + 1) * n + i;
 
+        if (cabs(*b) < 1e-15)
+            continue;
+
+        // Compute Givens rotation
+        complex_t r = hypot(*a, *b);
+        complex_t c = *a / r;
+        complex_t s = -*b / r;
+
+        // Apply Givens rotation to R (right multiplication)
+        for (size_t j = i; j < active; j++)
+        {
+            complex_t* t1     = R_values + i * n + j;
+            complex_t* t2     = R_values + (i + 1) * n + j;
+            complex_t* R_val1 = R_values + i * n + j;
+            complex_t* R_val2 = R_values + (i + 1) * n + j;
+            *R_val1           = c * *t1 - s * *t2;
+            *R_val2           = s * *t1 + c * *t2;
+        }
+
+        // Apply Givens rotation to Q (accumulate Q)
+        for (size_t j = 0; j < active; j++)
+        {
+            complex_t* t1     = Q_values + j * n + i;
+            complex_t* t2     = Q_values + j * n + (i + 1);
+            complex_t* Q_val1 = Q_values + j * n + i;
+            complex_t* Q_val2 = Q_values + j * n + (i + 1);
+            *Q_val1           = c * *t1 - s * *t2;
+            *Q_val2           = s * *t1 + c * *t2;
+        }
+    }
+}
+
+static void (*_qr_hess_units[TYPE_COUNT])(Matrix* Q,
+                                          Matrix* R,
+                                          Matrix* H,
+                                          size_t active,
+                                          const size_t n) = {
+    [Real]    = _qr_hess_real,
+    [Complex] = _qr_hess_cmpl,
+};
+
+void Matrix_QR_hessenberg(Matrix* Q, Matrix* R, Matrix* H, size_t active)
+{
+    const size_t n = H->n;
+    _qr_hess_units[H->dt](Q, R, H, active, n);
+}
+
+static void _dot_active_real(Matrix* H,
+                             const Matrix* R,
+                             const Matrix* Q,
+                             size_t active,
+                             const size_t n)
+{
     Matrix tmp;
-    // tmp.values = malloc(H->m * H->n * sizeof(double));
     tmp.values = NULL;
-    posix_memalign((void**)&tmp.values, 32, H->m * H->n * sizeof(double));
+    posix_memalign((void**)&tmp.values, 32, H->m * H->n * elem_size(Real));
     tmp.m = H->m;
     tmp.n = H->n;
+    ACCESS_VOID(real_t, R_values, R->values);
+    ACCESS_VOID(real_t, Q_values, Q->values);
+    ACCESS_VOID(real_t, H_values, H->values);
+    ACCESS_VOID(real_t, tmp_values, tmp.values);
 
     for (size_t i = 0; i < active; i++)
     {
         for (size_t j = 0; j < active; j++)
         {
-            double sum = 0.0;
+            real_t sum = 0.0;
             for (size_t k = 0; k < active; k++)
             {
-                double* R_val = R->values + i * n + k;
-                double* Q_val = Q->values + k * n + j;
+                real_t* R_val = R_values + i * n + k;
+                real_t* Q_val = Q_values + k * n + j;
                 sum += *R_val * *Q_val;
             }
-            double* t_ptr = tmp.values + i * n + j;
+            real_t* t_ptr = tmp_values + i * n + j;
 
             *t_ptr = sum;
         }
@@ -2618,8 +2883,8 @@ void Matrix_Matrix_dot_active(Matrix* H,
 #pragma omp simd
         for (size_t j = 0; j < active; j++)
         {
-            double* t_val = tmp.values + i * n + j;
-            double* H_val = H->values + i * n + j;
+            real_t* t_val = tmp_values + i * n + j;
+            real_t* H_val = H_values + i * n + j;
 
             *H_val = *t_val;
         }
@@ -2628,45 +2893,184 @@ void Matrix_Matrix_dot_active(Matrix* H,
     Matrix_free(&tmp);
 }
 
-int Matrix_inner_dot(double* target, const Matrix* A, const Matrix* B)
+static void _dot_active_cmpl(Matrix* H,
+                             const Matrix* R,
+                             const Matrix* Q,
+                             size_t active,
+                             const size_t n)
+{
+    Matrix tmp;
+    tmp.values = NULL;
+    posix_memalign((void**)&tmp.values, 32, H->m * H->n * elem_size(Complex));
+    tmp.m = H->m;
+    tmp.n = H->n;
+    ACCESS_VOID(complex_t, R_values, R->values);
+    ACCESS_VOID(complex_t, Q_values, Q->values);
+    ACCESS_VOID(complex_t, H_values, H->values);
+    ACCESS_VOID(complex_t, tmp_values, tmp.values);
+
+    for (size_t i = 0; i < active; i++)
+    {
+        for (size_t j = 0; j < active; j++)
+        {
+            complex_t sum = 0.0;
+            for (size_t k = 0; k < active; k++)
+            {
+                complex_t* R_val = R_values + i * n + k;
+                complex_t* Q_val = Q_values + k * n + j;
+                sum += *R_val * *Q_val;
+            }
+            complex_t* t_ptr = tmp_values + i * n + j;
+
+            *t_ptr = sum;
+        }
+    }
+
+    for (size_t i = 0; i < active; i++)
+    {
+#pragma omp simd
+        for (size_t j = 0; j < active; j++)
+        {
+            complex_t* t_val = tmp_values + i * n + j;
+            complex_t* H_val = H_values + i * n + j;
+            *H_val           = *t_val;
+        }
+    }
+
+    Matrix_free(&tmp);
+}
+
+static void (*_dot_active_units[TYPE_COUNT])(Matrix* H,
+                                             const Matrix* R,
+                                             const Matrix* Q,
+                                             size_t active,
+                                             const size_t n) = {
+    [Real]    = _dot_active_real,
+    [Complex] = _dot_active_cmpl,
+};
+
+void Matrix_Matrix_dot_active(Matrix* H,
+                              const Matrix* R,
+                              const Matrix* Q,
+                              size_t active)
+{
+    size_t n = H->n;
+    _dot_active_units[Q->dt](H, R, Q, active, n);
+}
+
+static void _inner_dot_int(void* target, const Matrix* A, const Matrix* B)
+{
+    int_t sum = 0;
+    ACCESS_VOID(int_t, A_values, A->values);
+    ACCESS_VOID(int_t, B_values, B->values);
+
+#pragma omp parallel for
+    FMA(A->m * A->n, sum, A_values[n], B_values[n]);
+
+    ASSIGN_UNTYPED(int_t, target, &sum);
+}
+
+static void _inner_dot_real(void* target, const Matrix* A, const Matrix* B)
+{
+    real_t sum = 0;
+    ACCESS_VOID(real_t, A_values, A->values);
+    ACCESS_VOID(real_t, B_values, B->values);
+
+#pragma omp parallel for
+    FMA(A->m * A->n, sum, A_values[n], B_values[n]);
+
+    ASSIGN_UNTYPED(real_t, target, &sum);
+}
+
+static void _inner_dot_cmpl(void* target, const Matrix* A, const Matrix* B)
+{
+    complex_t sum = 0;
+    ACCESS_VOID(complex_t, A_values, A->values);
+    ACCESS_VOID(complex_t, B_values, B->values);
+
+#pragma omp parallel for
+    FMA(A->m * A->n, sum, A_values[n], B_values[n]);
+    ASSIGN_UNTYPED(complex_t, target, &sum);
+}
+
+static void (*_inner_dot_units[TYPE_COUNT])(void* target,
+                                            const Matrix* A,
+                                            const Matrix* B) = {
+    [Int]     = _inner_dot_int,
+    [Real]    = _inner_dot_real,
+    [Complex] = _inner_dot_cmpl,
+};
+
+int Matrix_inner_dot(void* target, const Matrix* A, const Matrix* B)
 {
     if (A->m != B->m || A->n != B->n)
     {
         return MATRIX_DIMENSION_ERROR;
     }
-
-    double sum                = 0.0;
-    double* restrict A_values = A->values;
-    double* restrict B_values = B->values;
-
-#pragma omp parallel for
-    for (size_t i = 0; i < A->m * A->n; i++)
-    {
-        sum += A_values[i] * B_values[i];
-    }
-
-    *target = sum;
+    DataType dt = MAX(A->dt, B->dt);
+    _inner_dot_units[dt](target, A, B);
 
     return MATRIX_SUCCESS;
 }
 
-int Matrix_Hadamard_dot(Matrix* target, const Matrix* A, const Matrix* B)
+static void _hadamard_dot_int(Matrix* target, const Matrix* A, const Matrix* B)
 {
     const size_t M = A->m, N = A->n;
-    if (A->m != B->m || A->n != B->n)
-    {
-        return MATRIX_DIMENSION_ERROR;
-    }
-    Matrix_prepare_target(target, M, N, (A->dt > B->dt) ? A->dt : B->dt);
-    double* restrict A_values      = A->values;
-    double* restrict B_values      = B->values;
-    double* restrict target_values = target->values;
+    ACCESS_VOID(int_t, A_values, A->values);
+    ACCESS_VOID(int_t, B_values, B->values);
+    ACCESS_VOID(int_t, target_values, target->values);
 
-// #pragma omp simd aligned(A_values, B_values, target_values : 32)
 #pragma omp parallel for
     for (size_t i = 0; i < M * N; i++)
     {
         target_values[i] = A_values[i] * B_values[i];
     }
+}
+
+static void _hadamard_dot_real(Matrix* target, const Matrix* A, const Matrix* B)
+{
+    const size_t M = A->m, N = A->n;
+    ACCESS_VOID(real_t, A_values, A->values);
+    ACCESS_VOID(real_t, B_values, B->values);
+    ACCESS_VOID(real_t, target_values, target->values);
+
+#pragma omp parallel for
+    for (size_t i = 0; i < M * N; i++)
+    {
+        target_values[i] = A_values[i] * B_values[i];
+    }
+}
+
+static void _hadamard_dot_cmpl(Matrix* target, const Matrix* A, const Matrix* B)
+{
+    const size_t M = A->m, N = A->n;
+    ACCESS_VOID(complex_t, A_values, A->values);
+    ACCESS_VOID(complex_t, B_values, B->values);
+    ACCESS_VOID(complex_t, target_values, target->values);
+
+#pragma omp parallel for
+    for (size_t i = 0; i < M * N; i++)
+    {
+        target_values[i] = A_values[i] * B_values[i];
+    }
+}
+
+static void (*_hadamard_dot_units[TYPE_COUNT])(Matrix* target,
+                                               const Matrix* A,
+                                               const Matrix* B) = {
+    [Int]     = _hadamard_dot_int,
+    [Real]    = _hadamard_dot_real,
+    [Complex] = _hadamard_dot_cmpl,
+};
+
+int Matrix_Hadamard_dot(Matrix* target, const Matrix* A, const Matrix* B)
+{
+    if (A->m != B->m || A->n != B->n)
+    {
+        return MATRIX_DIMENSION_ERROR;
+    }
+    DataType dt = MAX(A->dt, B->dt);
+    Matrix_prepare_target(target, A->m, A->n, dt);
+    _hadamard_dot_units[dt](target, A, B);
     return MATRIX_SUCCESS;
 }
