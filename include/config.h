@@ -8,6 +8,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define DEBUG
+
+#ifdef DEBUG
+#define IF_DEBUG(code)                                                         \
+    do                                                                         \
+    {                                                                          \
+        code;                                                                  \
+    } while (0)
+
+#define DEBUG_PRINT(...) fprintf(stderr, __VA_ARGS__);
+#else
+#define IF_DEBUIF_DEBUG(code)                                                  \
+    do                                                                         \
+    {                                                                          \
+    } while (0)
+#define DEBUG_PRINT(...)
+#endif // DEBUG
+
 #define LOG_INFO_THRESHOLD 100 * 1024 * 1024
 
 #define ACCESS_VOID(typename, target, source)                                  \
