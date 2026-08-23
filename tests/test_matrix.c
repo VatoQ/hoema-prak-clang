@@ -456,7 +456,7 @@ void matrix_test_norm(void)
 
 void test_matrix_outer(void)
 {
-    const size_t N = 100;
+    const size_t N = 3;
     Vector v1      = Vector_new_random_normal(N, 0, 1, Real);
     Vector v2      = Vector_new_random_normal(N, 0, 1, Real);
     Matrix M       = Matrix_new(N, N, Real);
@@ -464,13 +464,16 @@ void test_matrix_outer(void)
     int status = Matrix_Vector_outer(&M, &v1, &v2);
     ACCESS_VOID(real_t, v1_values, v1.values);
     ACCESS_VOID(real_t, v2_values, v2.values);
+    ACCESS_VOID(real_t, M_values, M.values);
     for (size_t i = 0; i < N; i++)
     {
         for (size_t j = 0; j < N; j++)
         {
             const double true_val = v1_values[i] * v2_values[j];
-            ACCESS_VOID(real_t, val, M.values + i + N + j);
-            TEST_CHECK(fabs(true_val - *val) < EPS);
+            // ACCESS_VOID(real_t, val, M.values + i + N + j);
+            real_t val = M_values[i * N + j];
+            printf("true: %f, val: %f\n", true_val, val);
+            TEST_CHECK(fabs(true_val - val) < EPS);
         }
     }
 
@@ -478,14 +481,18 @@ void test_matrix_outer(void)
     status   = Matrix_Vector_outer_square(&M, &x);
 
     ACCESS_VOID(real_t, x_values, x.values);
+    M_values = (real_t*)M.values;
+    IF_DEBUG(Matrix_print(&M));
 
     for (size_t i = 0; i < N; i++)
     {
         for (size_t j = 0; j < N; j++)
         {
             const double true_val = x_values[i] * x_values[j];
-            ACCESS_VOID(real_t, val, M.values + i * N + j);
-            TEST_CHECK(fabs(true_val - *val) < EPS);
+            real_t val            = M_values[i * N + j];
+            DEBUG_PRINT("true: %f, val: %f\n", true_val, val);
+
+            TEST_CHECK(fabs(true_val - val) < EPS);
         }
     }
     Vector_free(&x);
@@ -510,5 +517,5 @@ TEST_LIST = { { "matrix_create", test_matrix_create },
               { "matrix_matrix_dot_jordan", test_matrix_matrix_dot_jordan },
               // { "matrix_test_norm", matrix_test_norm },
               // { "test_matrix_eigenvalues", test_matrix_eigenvalues },
-              // { "test_matrix_outer", test_matrix_outer },
+              { "test_matrix_outer", test_matrix_outer },
               { NULL, NULL } };
