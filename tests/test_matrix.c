@@ -1,3 +1,5 @@
+// Uncomment for detailed output
+// #define DEBUG
 #define TEST_NO_SIGNAL_HANDLING
 #include "../include/matrix.h"
 #include "../include/vector.h"
@@ -268,7 +270,7 @@ void test_matrix_diag(void)
         for (size_t j = 0; j < 3; j++)
         {
             double* ptr = (double*)D.values + i * 3 + j;
-            // printf("%f ", *ptr);
+            DEBUG_PRINT("%f ", *ptr);
             if (i == j)
             {
                 TEST_CHECK(fabs(*ptr - vals[i]) < EPS);
@@ -278,7 +280,7 @@ void test_matrix_diag(void)
                 TEST_CHECK(*ptr == 0.0);
             }
         }
-        // printf("\n");
+        DEBUG_PRINT("\n");
     }
 
     Vector_free(&v);
@@ -470,9 +472,8 @@ void test_matrix_outer(void)
         for (size_t j = 0; j < N; j++)
         {
             const double true_val = v1_values[i] * v2_values[j];
-            // ACCESS_VOID(real_t, val, M.values + i + N + j);
-            real_t val = M_values[i * N + j];
-            printf("true: %f, val: %f\n", true_val, val);
+            real_t val            = M_values[i * N + j];
+            DEBUG_PRINT("true: %f, val: %f\n", true_val, val);
             TEST_CHECK(fabs(true_val - val) < EPS);
         }
     }
@@ -482,7 +483,7 @@ void test_matrix_outer(void)
 
     ACCESS_VOID(real_t, x_values, x.values);
     M_values = (real_t*)M.values;
-    IF_DEBUG(Matrix_print(&M));
+    DEBUG_CODE(Matrix_print(&M));
 
     for (size_t i = 0; i < N; i++)
     {
