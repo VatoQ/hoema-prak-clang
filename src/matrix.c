@@ -408,7 +408,6 @@ void _diag_real(void* M_values, const size_t n, const void* vals)
 {
     for (size_t i = 0; i < n; i++)
     {
-        printf("s%zu\n", i);
         double* ptr = (double*)M_values + i * n + i;
         double* val = (double*)vals + i;
         *ptr        = *val;
@@ -2404,12 +2403,14 @@ int _outer_scalar(Matrix* target, const Vector* a, const Vector* b)
 {
     DataType dt = MAX(a->dt, b->dt);
     _outer_units_s[dt](target, a, b);
+    return MATRIX_SUCCESS;
 }
 
 int _outer_parallel(Matrix* target, const Vector* a, const Vector* b)
 {
     DataType dt = MAX(a->dt, b->dt);
     _outer_units_p[dt](target, a, b);
+    return MATRIX_SUCCESS;
 }
 
 int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b)
@@ -2612,7 +2613,6 @@ void Matrix_Matrix_dot_active(Matrix* H,
         }
     }
 
-    // Copy back only active block
     for (size_t i = 0; i < active; i++)
     {
 #pragma omp simd
@@ -2638,7 +2638,7 @@ int Matrix_inner_dot(double* target, const Matrix* A, const Matrix* B)
     double sum                = 0.0;
     double* restrict A_values = A->values;
     double* restrict B_values = B->values;
-// #pragma omp simd aligned(A_values, B_values : 32)
+
 #pragma omp parallel for
     for (size_t i = 0; i < A->m * A->n; i++)
     {
