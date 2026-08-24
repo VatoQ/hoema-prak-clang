@@ -3,6 +3,7 @@
 
 // Macros that may be overwritten in the project can be defined here.
 
+#include "defines.h"
 #include <complex.h>
 #include <stddef.h>
 #include <stdio.h>
