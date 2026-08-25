@@ -1,3 +1,4 @@
+// #define DEBUG
 #define _POSIX_C_SOURCE 200112L
 #include "../include/matrix.h"
 #include "../include/logging.h"
@@ -70,7 +71,7 @@ size_t _elem_size(DataType dt)
 Matrix Matrix_new(const size_t m, const size_t n, DataType dt)
 {
     Matrix res           = { 0 };
-    const size_t dt_size = _elem_size(dt);
+    const size_t dt_size = elem_size(dt);
     if (m != 0 && n != 0)
     {
         if (Log_get_verbosity() == LOG_VERB_ALL &&
@@ -112,7 +113,7 @@ Matrix Matrix_like(const Matrix* M)
 Matrix Matrix_zeros(const size_t m, const size_t n, DataType dt)
 {
     Matrix M = Matrix_new(m, n, dt);
-    memset(M.values, 0, m * n * _elem_size(dt));
+    memset(M.values, 0, m * n * elem_size(dt));
     return M;
 }
 
@@ -122,7 +123,7 @@ Matrix Matrix_new_vals(const size_t m,
                        DataType dt)
 {
     Matrix M = Matrix_new(m, n, dt);
-    memcpy(M.values, init_vals, m * n * _elem_size(dt));
+    memcpy(M.values, init_vals, m * n * elem_size(dt));
     M.m  = m;
     M.n  = n;
     M.dt = dt;
@@ -313,7 +314,7 @@ Matrix Matrix_new_random_symmetric(const size_t n, DataType dt)
 {
     // TODO: Vector datatypes
     Matrix M = Matrix_zeros(n, n, dt);
-    memset(M.values, 0, n * n * _elem_size(dt));
+    memset(M.values, 0, n * n * elem_size(dt));
     Matrix tmp = Matrix_zeros_like(&M, dt);
 
     Vector v = Vector_zeros(0, dt);
@@ -330,11 +331,11 @@ Matrix Matrix_new_random_symmetric(const size_t n, DataType dt)
         Vector_free(&v);
     }
     if (Log_get_verbosity() == LOG_VERB_ALL &&
-        Log_info_threshold(n * n, _elem_size(dt)))
+        Log_info_threshold(n * n, elem_size(dt)))
     {
         char buf[128];
         double mibi_byte_size =
-          1.0 * n * n * _elem_size(dt) / (double)(1024 * 1024);
+          1.0 * n * n * elem_size(dt) / (double)(1024 * 1024);
         snprintf(buf,
                  128,
                  "New random symmetric matrix constructed with shape (%zu, "
@@ -387,7 +388,7 @@ static void (*_zero_initializers[TYPE_COUNT])(void* values,
 Matrix Matrix_zeros_like(const Matrix* M, DataType dt)
 {
     Matrix new = Matrix_like(M);
-    memset(M->values, 0, M->m * M->n * _elem_size(dt));
+    memset(M->values, 0, M->m * M->n * elem_size(dt));
 
     // _zero_initializers[dt](new.values, M->m * M->n);
     return new;
@@ -395,31 +396,31 @@ Matrix Matrix_zeros_like(const Matrix* M, DataType dt)
 
 void _diag_int(void* M_values, const size_t n, const void* vals)
 {
+    ACCESS_VOID(int_t, M_values_t, M_values);
+    ACCESS_VOID(int_t, source, vals);
     for (size_t i = 0; i < n; i++)
     {
-        long* ptr = (long*)M_values + i * n + i;
-        long* val = (long*)vals + i;
-        *ptr      = *val;
+        M_values_t[i * n + i] = source[i];
     }
 }
 
 void _diag_real(void* M_values, const size_t n, const void* vals)
 {
+    ACCESS_VOID(real_t, M_values_t, M_values);
+    ACCESS_VOID(real_t, source, vals);
     for (size_t i = 0; i < n; i++)
     {
-        double* ptr = (double*)M_values + i * n + i;
-        double* val = (double*)vals + i;
-        *ptr        = *val;
+        M_values_t[i * n + i] = source[i];
     }
 }
 
 void _diag_cmpl(void* M_values, const size_t n, const void* vals)
 {
+    ACCESS_VOID(complex_t, M_values_t, M_values);
+    ACCESS_VOID(complex_t, source, vals);
     for (size_t i = 0; i < n; i++)
     {
-        complex double* ptr = (complex double*)M_values + i * n + i;
-        complex double* val = (complex double*)vals + i;
-        *ptr                = *val;
+        M_values_t[i * n + i] = source[i];
     }
 }
 
@@ -470,88 +471,18 @@ Matrix Matrix_diag(const Vector* v)
     return M;
 }
 
-void _diag_int_c(void* M_values, const size_t n, const void* vals)
-{
-    for (size_t i = 0; i < n; i++)
-    {
-        long* target_val = (long*)M_values + i * n + i;
-        long* sourve_val = (long*)vals + i;
-        *target_val      = *sourve_val;
-    }
-}
-
-void _diag_real_c(void* M_values, const size_t n, const void* vals)
-{
-    for (size_t i = 0; i < n; i++)
-    {
-        double* target_val = (double*)M_values + i * n + i;
-        double* sourve_val = (double*)vals + i;
-        *target_val        = *sourve_val;
-    }
-}
-
-void _diag_cmpl_c(void* M_values, const size_t n, const void* vals)
-{
-    for (size_t i = 0; i < n; i++)
-    {
-        complex double* target_val = (complex double*)M_values + i * n + i;
-        complex double* sourve_val = (complex double*)vals + i;
-        *target_val                = *sourve_val;
-    }
-}
-
-void (*_diag_helper_workers_c[TYPE_COUNT])(void* M_values,
-                                           const size_t n,
-                                           const void* vals) = {
-    [Int]     = _diag_int_c,
-    [Real]    = _diag_real_c,
-    [Complex] = _diag_cmpl_c
-};
-
-void _init_vals_int(const size_t n, void* vals, const void* val)
-{
-    long* vals_i = (long*)vals;
-    long* val_i  = (long*)val;
-    INITIALIZER(n, vals_i, val_i);
-}
-
-void _init_vals_real(const size_t n, void* vals, const void* val)
-{
-    double* vals_r = (double*)vals;
-    double* val_r  = (double*)val;
-    INITIALIZER(n, vals_r, val_r);
-}
-
-void _init_vals_cmpl(const size_t n, void* vals, const void* val)
-{
-
-    complex double* vals_c = (complex double*)vals;
-    complex double* val_c  = (complex double*)val;
-    INITIALIZER(n, vals_c, val_c);
-}
-
-void (*_init_vals_units[TYPE_COUNT])(const size_t n,
-                                     void* vals,
-                                     const void* val) = {
-    [Int]     = _init_vals_int,
-    [Real]    = _init_vals_real,
-    [Complex] = _init_vals_cmpl,
-};
-
 Matrix Matrix_diag_val(const size_t n, const void* val, const DataType dt)
 {
-    Matrix M   = Matrix_zeros(n, n, dt);
-    void* vals = calloc(n, _elem_size(dt));
-    _init_vals_units[dt](n, vals, val);
-    _diag_helper_workers_c[dt](M.values, n, vals);
-    free(vals);
+    Vector v = Vector_new(n, val, dt);
+    Matrix M = Matrix_diag(&v);
+    Vector_free(&v);
     return M;
 }
 
 void Matrix_copy(Matrix* target, const Matrix* M)
 {
     Matrix_prepare_target(target, M->m, M->n, M->dt);
-    memcpy(target->values, M->values, M->m * M->n * _elem_size(M->dt));
+    memcpy(target->values, M->values, M->m * M->n * elem_size(M->dt));
     target->m  = M->m;
     target->n  = M->n;
     target->dt = M->dt;
@@ -722,7 +653,7 @@ void Matrix_free(Matrix* M)
 {
     free(M->values);
     M->values = NULL;
-    M->m = 0, M->n = 0;
+    M->m = 0, M->n = 0, M->dt = 0;
 }
 
 static void _max_int(void* target, const Matrix* M)
@@ -1013,7 +944,7 @@ static void _frobenius_helper_int(void* target, const Matrix* M)
 
         s += *val1 * *val2;
     }
-    memcpy(target, &s, _elem_size(Int));
+    memcpy(target, &s, elem_size(Int));
 }
 
 static void _frobenius_helper_real(void* target, const Matrix* M)
@@ -1028,7 +959,7 @@ static void _frobenius_helper_real(void* target, const Matrix* M)
 
         s += *val1 * *val2;
     }
-    memcpy(target, &s, _elem_size(Real));
+    memcpy(target, &s, elem_size(Real));
 }
 
 static void _frobenius_helper_cmpl(void* target, const Matrix* M)
@@ -1043,7 +974,7 @@ static void _frobenius_helper_cmpl(void* target, const Matrix* M)
 
         s += *val1 * *val2;
     }
-    memcpy(target, &s, _elem_size(Complex));
+    memcpy(target, &s, elem_size(Complex));
 }
 
 static void (*_frobenius_helpers[TYPE_COUNT])(void* target, const Matrix* M) = {
@@ -1059,7 +990,7 @@ static void _spectral_helper(void* target, const Matrix* M)
     // TODO: correct eigval logic
     void* eig_ptr     = eigvals.values + M->n - 1;
     double* eig_ptr_t = (double*)eig_ptr;
-    memcpy(target, eig_ptr_t, _elem_size(M->dt));
+    memcpy(target, eig_ptr_t, elem_size(M->dt));
 
     Vector_free(&eigvals);
 }
@@ -1088,28 +1019,18 @@ void Matrix_norm(void* target, const Matrix* M, NormType nt)
 
 static void _add_sub_int(operator_e op, Matrix* target, const Matrix* M)
 {
-    long *ptr1 = NULL, *ptr2 = NULL;
-
+    ACCESS_VOID(int_t, target_values, target->values);
+    ACCESS_VOID(int_t, M_values, M->values);
     switch (op)
     {
         case Add:
         {
-            for (size_t n = 0; n < M->m * M->n; n++)
-            {
-                ptr1 = (long*)target->values + n;
-                ptr2 = (long*)M->values + n;
-                *ptr1 += *ptr2;
-            }
+            ADD(M->m * M->n, target_values[n], M_values[n]);
             break;
         }
         case Sub:
         {
-            for (size_t n = 0; n < M->m * M->n; n++)
-            {
-                ptr1 = (long*)target->values + n;
-                ptr2 = (long*)M->values + n;
-                *ptr1 -= *ptr2;
-            }
+            SUB(M->m * M->n, target_values[n], M_values[n]);
             break;
         }
         default:
@@ -1129,28 +1050,19 @@ static void _add_sub_int(operator_e op, Matrix* target, const Matrix* M)
 
 static void _add_sub_real(operator_e op, Matrix* target, const Matrix* M)
 {
-    double *ptr1 = NULL, *ptr2 = NULL;
+    ACCESS_VOID(real_t, target_values, target->values);
+    ACCESS_VOID(real_t, M_values, M->values);
 
     switch (op)
     {
         case Add:
         {
-            for (size_t n = 0; n < M->m * M->n; n++)
-            {
-                ptr1 = (double*)target->values + n;
-                ptr2 = (double*)M->values + n;
-                *ptr1 += *ptr2;
-            }
+            ADD(M->m * M->n, target_values[n], M_values[n]);
             break;
         }
         case Sub:
         {
-            for (size_t n = 0; n < M->m * M->n; n++)
-            {
-                ptr1 = (double*)target->values + n;
-                ptr2 = (double*)M->values + n;
-                *ptr1 -= *ptr2;
-            }
+            SUB(M->m * M->n, target_values[n], M_values[n]);
             break;
         }
         default:
@@ -1170,28 +1082,19 @@ static void _add_sub_real(operator_e op, Matrix* target, const Matrix* M)
 
 static void _add_sub_cmpl(operator_e op, Matrix* target, const Matrix* M)
 {
-    complex double *ptr1 = NULL, *ptr2 = NULL;
+    ACCESS_VOID(complex_t, target_values, target->values);
+    ACCESS_VOID(complex_t, M_values, M->values);
 
     switch (op)
     {
         case Add:
         {
-            for (size_t n = 0; n < M->m * M->n; n++)
-            {
-                ptr1 = (complex double*)target->values + n;
-                ptr2 = (complex double*)M->values + n;
-                *ptr1 += *ptr2;
-            }
+            ADD(M->m * M->n, target_values[n], M_values[n]);
             break;
         }
         case Sub:
         {
-            for (size_t n = 0; n < M->m * M->n; n++)
-            {
-                ptr1 = (complex double*)target->values + n;
-                ptr2 = (complex double*)M->values + n;
-                *ptr1 -= *ptr2;
-            }
+            SUB(M->m * M->n, target_values[n], M_values[n]);
             break;
         }
         default:
@@ -1246,10 +1149,10 @@ static void _scale_int(Matrix* target, const complex double lambda)
 {
     const size_t N        = target->m * target->n;
     const size_t lambda_w = round(creal(lambda));
+    ACCESS_VOID(int_t, target_values, target->values);
     for (int n = 0; n < N; n++)
     {
-        long* ptr = (long*)target->values + n;
-        *ptr *= lambda_w;
+        target_values[n] *= lambda_w;
     }
 }
 
@@ -1257,20 +1160,20 @@ static void _scale_real(Matrix* target, const complex double lambda)
 {
     const size_t N        = target->m * target->n;
     const double lambda_w = creal(lambda);
+    ACCESS_VOID(real_t, target_values, target->values);
     for (int n = 0; n < N; n++)
     {
-        double* ptr = (double*)target->values + n;
-        *ptr *= lambda_w;
+        target_values[n] *= lambda_w;
     }
 }
 
 static void _scale_cmpl(Matrix* target, const complex double lambda)
 {
     const size_t N = target->m * target->n;
+    ACCESS_VOID(real_t, target_values, target->values);
     for (int n = 0; n < N; n++)
     {
-        complex double* ptr = (complex double*)target->values + n;
-        *ptr *= lambda;
+        target_values[n] *= lambda;
     }
 }
 
@@ -1501,13 +1404,13 @@ int _2_x_2_int(Matrix* target, const Matrix* M, void** ptrs)
         for (char i = 0; i < 4; i++)
         {
             long val = (long)init_vals[i];
-            memcpy(target->values + i, &val, _elem_size(Int));
+            memcpy(target->values + i, &val, elem_size(Int));
         }
         return MATRIX_SUCCESS;
     }
 
     Matrix_prepare_target(target, 2, 2, Real);
-    memcpy(target->values, init_vals, 4 * _elem_size(Int));
+    memcpy(target->values, init_vals, 4 * elem_size(Int));
     return MATRIX_SUCCESS;
 }
 
@@ -1536,7 +1439,7 @@ int _2_x_2_real(Matrix* target, const Matrix* M, void** ptrs)
         scalar * *d, scalar * -*b, scalar * -*c, scalar * *a
     };
 
-    memcpy(target->values, init_vals, 4 * _elem_size(Real));
+    memcpy(target->values, init_vals, 4 * elem_size(Real));
     return MATRIX_SUCCESS;
 }
 
@@ -1565,7 +1468,7 @@ int _2_x_2_cmpl(Matrix* target, const Matrix* M, void** ptrs)
         scalar * *d, scalar * -*b, scalar * -*c, scalar * *a
     };
 
-    memcpy(target->values, init_vals, 4 * _elem_size(Complex));
+    memcpy(target->values, init_vals, 4 * elem_size(Complex));
     return MATRIX_SUCCESS;
 }
 
@@ -1601,21 +1504,16 @@ int Matrix_inverse(Matrix* target, const Matrix* M)
     return MATRIX_SUCCESS;
 }
 
-int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
+static void _vector_dot_int(Vector* target, const Matrix* M, const Vector* v)
 {
-    if (M->n != v->dim)
-    {
-        Log_log("Index out of range in Matrix_Vector_dot()", LOG_RT_ERROR);
-        return MATRIX_DIMENSION_ERROR;
-    }
     const size_t DIM = M->m;
     const size_t N   = M->n;
     Vector_prepare_target(target, DIM, M->dt);
-    double* restrict M_values      = M->values;
-    double* restrict v_values      = v->values;
-    double* restrict target_values = target->values;
-    double sum                     = 0.0;
-    double M_val, V_val;
+    int_t* restrict M_values      = M->values;
+    int_t* restrict v_values      = v->values;
+    int_t* restrict target_values = target->values;
+    int_t sum                     = 0.0;
+    int_t M_val, V_val;
 
 #pragma omp parallel for
     for (size_t d = 0; d < DIM; d++)
@@ -1630,25 +1528,87 @@ int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
         }
         target_values[d] = sum;
     }
+}
 
+static void _vector_dot_real(Vector* target, const Matrix* M, const Vector* v)
+{
+    const size_t DIM = M->m;
+    const size_t N   = M->n;
+    Vector_prepare_target(target, DIM, M->dt);
+    real_t* restrict M_values      = M->values;
+    real_t* restrict v_values      = v->values;
+    real_t* restrict target_values = target->values;
+    real_t sum                     = 0.0;
+    real_t M_val, V_val;
+
+#pragma omp parallel for
+    for (size_t d = 0; d < DIM; d++)
+    {
+        sum = 0.0;
+#pragma omp simd aligned(M_values, v_values : 32)
+        for (size_t n = 0; n < N; n++)
+        {
+            M_val = M_values[d * M->n + n];
+            V_val = v_values[n];
+            sum += M_val * V_val;
+        }
+        target_values[d] = sum;
+    }
+}
+
+static void _vector_dot_cmpl(Vector* target, const Matrix* M, const Vector* v)
+{
+    const size_t DIM = M->m;
+    const size_t N   = M->n;
+    Vector_prepare_target(target, DIM, M->dt);
+    complex_t* restrict M_values      = M->values;
+    complex_t* restrict v_values      = v->values;
+    complex_t* restrict target_values = target->values;
+    complex_t sum                     = 0.0;
+    complex_t M_val, V_val;
+
+#pragma omp parallel for
+    for (size_t d = 0; d < DIM; d++)
+    {
+        sum = 0.0;
+#pragma omp simd aligned(M_values, v_values : 32)
+        for (size_t n = 0; n < N; n++)
+        {
+            M_val = M_values[d * M->n + n];
+            V_val = v_values[n];
+            sum += M_val * V_val;
+        }
+        target_values[d] = sum;
+    }
+}
+
+static void (*_vector_dot_units[TYPE_COUNT])(Vector* target,
+                                             const Matrix* M,
+                                             const Vector* v) = {
+    [Int]     = _vector_dot_int,
+    [Real]    = _vector_dot_real,
+    [Complex] = _vector_dot_cmpl,
+};
+
+int Matrix_Vector_dot(Vector* target, const Matrix* M, const Vector* v)
+{
+    if (M->n != v->dim)
+    {
+        Log_log("Index out of range in Matrix_Vector_dot()", LOG_RT_ERROR);
+        return MATRIX_DIMENSION_ERROR;
+    }
+    DataType dt = MAX(M->dt, v->dt);
+    _vector_dot_units[dt](target, M, v);
     return MATRIX_SUCCESS;
 }
 
-int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
+static void _matrix_dot_int(Matrix* target, const Matrix* M1, const Matrix* M2)
 {
-    if (M1->n != M2->m)
-    {
-        Log_log("Index out of range in Matrix_Matrix_dot()", LOG_RT_ERROR);
-        return MATRIX_DIMENSION_ERROR;
-    }
-
-    Matrix_prepare_target(target, M1->n, M2->m, M2->dt);
-
-    double* restrict M1_values     = M1->values;
-    double* restrict M2_values     = M2->values;
-    double* restrict target_values = target->values;
-    double sum                     = 0.0;
-    double a, b;
+    int_t* restrict M1_values     = M1->values;
+    int_t* restrict M2_values     = M2->values;
+    int_t* restrict target_values = target->values;
+    int_t sum                     = 0.0;
+    int_t a, b;
     size_t K = M1->n;
 
 #pragma omp parallel for collapse(2)
@@ -1668,6 +1628,82 @@ int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
             target_values[m * target->n + n] = sum;
         }
     }
+}
+
+static void _matrix_dot_real(Matrix* target, const Matrix* M1, const Matrix* M2)
+{
+    real_t* restrict M1_values     = M1->values;
+    real_t* restrict M2_values     = M2->values;
+    real_t* restrict target_values = target->values;
+    real_t sum                     = 0.0;
+    real_t a, b;
+    size_t K = M1->n;
+
+#pragma omp parallel for collapse(2)
+    for (size_t m = 0; m < target->m; m++)
+    {
+        for (size_t n = 0; n < target->n; n++)
+        {
+            sum = 0.0;
+
+#pragma omp simd aligned(M1_values, M2_values, target_values : 32)
+            for (size_t o = 0; o < M1->n; o++)
+            {
+                a = M1_values[m * M1->n + o];
+                b = M2_values[o * M2->n + n];
+                sum += a * b;
+            }
+            target_values[m * target->n + n] = sum;
+        }
+    }
+}
+
+static void _matrix_dot_cmpl(Matrix* target, const Matrix* M1, const Matrix* M2)
+{
+    complex_t* restrict M1_values     = M1->values;
+    complex_t* restrict M2_values     = M2->values;
+    complex_t* restrict target_values = target->values;
+    complex_t sum                     = 0.0;
+    complex_t a, b;
+    size_t K = M1->n;
+
+#pragma omp parallel for collapse(2)
+    for (size_t m = 0; m < target->m; m++)
+    {
+        for (size_t n = 0; n < target->n; n++)
+        {
+            sum = 0.0;
+
+#pragma omp simd aligned(M1_values, M2_values, target_values : 32)
+            for (size_t o = 0; o < M1->n; o++)
+            {
+                a = M1_values[m * M1->n + o];
+                b = M2_values[o * M2->n + n];
+                sum += a * b;
+            }
+            target_values[m * target->n + n] = sum;
+        }
+    }
+}
+
+static void (*_matrix_dot_units[TYPE_COUNT])(Matrix* target,
+                                             const Matrix* M1,
+                                             const Matrix* M2) = {
+    [Int]     = _matrix_dot_int,
+    [Real]    = _matrix_dot_real,
+    [Complex] = _matrix_dot_cmpl,
+};
+
+int Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2)
+{
+    if (M1->n != M2->m)
+    {
+        Log_log("Index out of range in Matrix_Matrix_dot()", LOG_RT_ERROR);
+        return MATRIX_DIMENSION_ERROR;
+    }
+    Matrix_prepare_target(target, M1->n, M2->m, M2->dt);
+    DataType dt = MAX(M1->dt, M2->dt);
+    _matrix_dot_units[dt](target, M1, M2);
     return MATRIX_SUCCESS;
 }
 
@@ -2010,8 +2046,8 @@ int Matrix_column_pivot(Matrix* A, size_t k, size_t* P)
             double* best_j_val = (double*)A_i_n_bj_ptr;
             // A->values[i * n + k]      = A->values[i * n + best_j];
             // A->values[i * n + best_j] = tmp;
-            memcpy(A_i_n_k_ptr, best_j_val, _elem_size(Real));
-            memcpy(A_i_n_bj_ptr, tmp, _elem_size(Real));
+            memcpy(A_i_n_k_ptr, best_j_val, elem_size(Real));
+            memcpy(A_i_n_bj_ptr, tmp, elem_size(Real));
         }
 
         // Update permutation vector
@@ -2498,8 +2534,7 @@ int _outer_parallel(Matrix* target, const Vector* a, const Vector* b)
 
 int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b)
 {
-    Matrix_prepare_target(
-      target, a->dim, b->dim, (a->dt > b->dt) ? a->dt : b->dt);
+    Matrix_prepare_target(target, a->dim, b->dim, MAX(a->dt, b->dt));
     if (a->dim * b->dim > 200 * 200)
     {
         return _outer_parallel(target, a, b);

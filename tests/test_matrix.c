@@ -1,6 +1,6 @@
 // Uncomment for detailed output
-// #define DEBUG
 #define TEST_NO_SIGNAL_HANDLING
+// #define DEBUG
 #include "../include/matrix.h"
 #include "../include/vector.h"
 #include "acutest.h"
@@ -36,13 +36,14 @@ void test_matrix_symmetric(void)
 {
     const size_t m = 2;
     Matrix M       = Matrix_new_random_symmetric(m, Real);
+    ACCESS_VOID(real_t, M_values, M.values);
     for (size_t i = 0; i < m; i++)
     {
         for (size_t j = i + 1; j < m; j++)
         {
-            const double* ptr1 = (double*)M.values + i * m + j;
-            const double* ptr2 = (double*)M.values + j * m + i;
-            TEST_CHECK(fabs(*ptr1 - *ptr2) < EPS);
+            const double a = M_values[i * m + j];
+            const double b = M_values[j * m + i];
+            TEST_CHECK(fabs(a - b) < EPS);
         }
     }
 
@@ -51,8 +52,8 @@ void test_matrix_symmetric(void)
 
 void test_matrix_add(void)
 {
-    double initvals1[8 * 5];
-    double initvals2[8 * 5];
+    real_t initvals1[8 * 5];
+    real_t initvals2[8 * 5];
     for (size_t i = 0; i < 8 * 5; i++)
     {
         initvals1[i] = 4.5;
@@ -64,10 +65,11 @@ void test_matrix_add(void)
 
     int status = Matrix_add(&B, &A);
 
+    ACCESS_VOID(real_t, B_values, B.values);
     for (size_t i = 0; i < 8 * 5; i++)
     {
-        const double* ptr = (double*)B.values + i;
-        TEST_CHECK(fabs(*ptr - 7.7) < EPS);
+        const real_t a = B_values[i];
+        TEST_CHECK(fabs(a - 7.7) < EPS);
     }
 
     TEST_CHECK(status == MATRIX_SUCCESS);
@@ -84,9 +86,9 @@ void test_matrix_add(void)
 }
 void test_matrix_sub(void)
 {
-    double initvals1[8 * 5];
-    double initvals2[8 * 5];
-    double initvals3[8 * 5];
+    real_t initvals1[8 * 5];
+    real_t initvals2[8 * 5];
+    real_t initvals3[8 * 5];
     for (size_t i = 0; i < 8 * 5; i++)
     {
         initvals1[i] = 4.5;
@@ -99,12 +101,13 @@ void test_matrix_sub(void)
     Matrix C = Matrix_new_vals(5, 8, initvals3, Real);
 
     int status = Matrix_sub(&A, &B);
+    ACCESS_VOID(real_t, A_values, A.values);
 
     for (size_t i = 0; i < 8 * 5; i++)
     {
-        const double* ptr = (double*)A.values + i;
+        const real_t a = A_values[i];
 
-        TEST_CHECK(fabs(*ptr - 1.3) < EPS);
+        TEST_CHECK(fabs(a - 1.3) < EPS);
     }
 
     TEST_CHECK(status == MATRIX_SUCCESS);
@@ -120,19 +123,20 @@ void test_matrix_sub(void)
 
 void test_matrix_scale(void)
 {
-    const double val            = 51.34;
-    const double lambda         = 0.23;
-    double init_vals[N_C * N_C] = { val };
+    const real_t val            = 51.34;
+    const real_t lambda         = 0.23;
+    real_t init_vals[N_C * N_C] = { val };
     for (size_t i = 0; i < 5 * 5; i++)
     {
         init_vals[i] = val;
     }
     Matrix M = Matrix_new_vals(N_C, N_C, init_vals, Real);
     Matrix_scale(&M, lambda);
+    ACCESS_VOID(real_t, M_values, M.values);
     for (size_t i = 0; i < N_C * N_C; i++)
     {
-        const double* ptr = (double*)M.values + i;
-        TEST_CHECK(fabs(*ptr - val * lambda) < EPS);
+        const real_t a = M_values[i];
+        TEST_CHECK(fabs(a - val * lambda) < EPS);
     }
     Matrix_free(&M);
 }
@@ -148,17 +152,17 @@ void test_matrix_inverse(void)
 
     int status = Matrix_inverse(&M_inv, &M);
     TEST_CHECK(status == MATRIX_SUCCESS);
+    ACCESS_VOID(real_t, M_values, M.values);
+    ACCESS_VOID(real_t, M_inv_values, M_inv.values);
 
     if (status == MATRIX_SUCCESS)
     {
         for (size_t i = 0; i < 4; i++)
         {
-            const void* ptr1         = M.values + i;
-            const void* ptr2         = M_inv.values + i;
-            const double* inner_val1 = (double*)ptr1;
-            const double* inner_val2 = (double*)ptr2;
+            const double a = M_values[i];
+            const double b = M_inv_values[i];
 
-            TEST_CHECK(fabs(*inner_val1 - scalar * *inner_val2) < EPS);
+            TEST_CHECK(fabs(a - scalar * b) < EPS);
         }
     }
 
@@ -216,8 +220,8 @@ void test_matrix_set_get(void)
 
 void test_matrix_copy(void)
 {
-    double vals[]   = { 1, 2, 3, 4, 5, 6 };
-    double zeros[6] = { 0 };
+    real_t vals[]   = { 1, 2, 3, 4, 5, 6 };
+    real_t zeros[6] = { 0 };
     Matrix A        = Matrix_new_vals(2, 3, vals, Real);
     Matrix B        = Matrix_new(0, 0, Real);
 
@@ -225,11 +229,12 @@ void test_matrix_copy(void)
 
     TEST_CHECK(B.m == 2);
     TEST_CHECK(B.n == 3);
+    ACCESS_VOID(real_t, B_values, B.values);
 
     for (size_t i = 0; i < 6; i++)
     {
-        double* ptr = (double*)B.values + i;
-        TEST_CHECK(fabs(*ptr - vals[i]) < EPS);
+        const real_t a = B_values[i];
+        TEST_CHECK(fabs(a - vals[i]) < EPS);
     }
 
     Matrix_free(&A);
@@ -257,27 +262,28 @@ void test_matrix_zeros_like(void)
 
 void test_matrix_diag(void)
 {
-    double vals[3] = { 1.0, 2.0, 3.0 };
+    real_t vals[3] = { 1.0, 2.0, 3.0 };
     Vector v       = Vector_new_vals(3, vals, Real);
 
     Matrix D = Matrix_diag(&v);
 
     TEST_CHECK(D.m == 3);
     TEST_CHECK(D.n == 3);
+    ACCESS_VOID(real_t, D_values, D.values);
 
     for (size_t i = 0; i < 3; i++)
     {
         for (size_t j = 0; j < 3; j++)
         {
-            double* ptr = (double*)D.values + i * 3 + j;
-            DEBUG_PRINT("%f ", *ptr);
+            real_t val = D_values[i * 3 + j];
+            DEBUG_PRINT("%f ", val);
             if (i == j)
             {
-                TEST_CHECK(fabs(*ptr - vals[i]) < EPS);
+                TEST_CHECK(fabs(val - vals[i]) < EPS);
             }
             else
             {
-                TEST_CHECK(*ptr == 0.0);
+                TEST_CHECK(val == 0.0);
             }
         }
         DEBUG_PRINT("\n");
@@ -290,25 +296,26 @@ void test_matrix_diag(void)
 void test_matrix_diag_val(void)
 {
     const size_t N = 4;
-    double val     = 7.5;
+    real_t val     = 7.5;
     Matrix D       = Matrix_diag_val(N, &val, Real);
 
     TEST_CHECK(D.m == N);
     TEST_CHECK(D.n == N);
+    ACCESS_VOID(real_t, D_values, D.values);
+    DEBUG_CODE(Matrix_print(&D));
 
     for (size_t i = 0; i < N; i++)
     {
         for (size_t j = 0; j < N; j++)
         {
-            double* ptr = (double*)D.values + i * N + j;
+            const real_t a = D_values[i * N + j];
             if (i == j)
             {
-
-                TEST_CHECK(fabs(*ptr - val) < EPS);
+                TEST_CHECK(fabs(a - val) < EPS);
             }
             else
             {
-                TEST_CHECK(*ptr == 0.0);
+                TEST_CHECK(a == 0.0);
             }
         }
     }
@@ -324,14 +331,15 @@ void test_matrix_free(void)
     TEST_CHECK(A.values == NULL);
     TEST_CHECK(A.m == 0);
     TEST_CHECK(A.n == 0);
+    TEST_CHECK(A.dt == 0);
 }
 
 void test_matrix_vector_dot(void)
 {
-    double mvals[] = { 1, 2, 3, 4, 5, 6 };
+    real_t mvals[] = { 1, 2, 3, 4, 5, 6 };
     Matrix M       = Matrix_new_vals(2, 3, mvals, Real);
 
-    double vvals[] = { 1, 2, 3 };
+    real_t vvals[] = { 1, 2, 3 };
     Vector v       = Vector_new_vals(3, vvals, Real);
 
     Vector out = Vector_zeros(2, Real);
@@ -339,10 +347,13 @@ void test_matrix_vector_dot(void)
     int status = Matrix_Vector_dot(&out, &M, &v);
     ACCESS_VOID(real_t, out_values, out.values);
     TEST_CHECK(status == MATRIX_SUCCESS);
+    DEBUG_PRINT("Vector in vector_dot():\n");
+    DEBUG_CODE(Vector_print(&out));
 
     TEST_CHECK(fabs(out_values[0] - (1 * 1 + 2 * 2 + 3 * 3)) < EPS);
     TEST_CHECK(fabs(out_values[1] - (4 * 1 + 5 * 2 + 6 * 3)) < EPS);
 
+    SCALE(5, status, 4);
     Vector_free(&v);
     Vector_free(&out);
     Matrix_free(&M);
@@ -350,8 +361,8 @@ void test_matrix_vector_dot(void)
 
 void test_matrix_matrix_dot(void)
 {
-    double Avals[] = { 1, 2, 3, 4 };
-    double Bvals[] = { 5, 6, 7, 8 };
+    real_t Avals[] = { 1, 2, 3, 4 };
+    real_t Bvals[] = { 5, 6, 7, 8 };
 
     Matrix A = Matrix_new_vals(2, 2, Avals, Real);
     Matrix B = Matrix_new_vals(2, 2, Bvals, Real);
@@ -359,15 +370,16 @@ void test_matrix_matrix_dot(void)
 
     int status = Matrix_Matrix_dot(&C, &A, &B);
     TEST_CHECK(status == MATRIX_SUCCESS);
-    double* a = (double*)C.values;
-    double* b = (double*)C.values + 1;
-    double* c = (double*)C.values + 2;
-    double* d = (double*)C.values + 3;
+    ACCESS_VOID(real_t, C_values, C.values);
+    real_t a = C_values[0];
+    real_t b = C_values[1];
+    real_t c = C_values[2];
+    real_t d = C_values[3];
 
-    TEST_CHECK(fabs(*a - (1 * 5 + 2 * 7)) < EPS);
-    TEST_CHECK(fabs(*b - (1 * 6 + 2 * 8)) < EPS);
-    TEST_CHECK(fabs(*c - (3 * 5 + 4 * 7)) < EPS);
-    TEST_CHECK(fabs(*d - (3 * 6 + 4 * 8)) < EPS);
+    TEST_CHECK(fabs(a - (1 * 5 + 2 * 7)) < EPS);
+    TEST_CHECK(fabs(b - (1 * 6 + 2 * 8)) < EPS);
+    TEST_CHECK(fabs(c - (3 * 5 + 4 * 7)) < EPS);
+    TEST_CHECK(fabs(d - (3 * 6 + 4 * 8)) < EPS);
 
     Matrix_free(&A);
     Matrix_free(&B);
@@ -376,8 +388,8 @@ void test_matrix_matrix_dot(void)
 
 void test_matrix_matrix_dot_jordan(void)
 {
-    double Avals[] = { 2, 0, 0, 3 };
-    double Bvals[] = { 4, 0, 0, 5 };
+    real_t Avals[] = { 2, 0, 0, 3 };
+    real_t Bvals[] = { 4, 0, 0, 5 };
 
     Matrix A = Matrix_new_vals(2, 2, Avals, Real);
     Matrix B = Matrix_new_vals(2, 2, Bvals, Real);
@@ -385,16 +397,17 @@ void test_matrix_matrix_dot_jordan(void)
 
     int status = Matrix_Matrix_dot_jordan(&J, &A, &B);
     TEST_CHECK(status == MATRIX_SUCCESS);
-    double* a = (double*)J.values;
-    double* b = (double*)J.values + 1;
-    double* c = (double*)J.values + 2;
-    double* d = (double*)J.values + 3;
+    ACCESS_VOID(real_t, J_values, J.values);
+    real_t a = J_values[0];
+    real_t b = J_values[1];
+    real_t c = J_values[2];
+    real_t d = J_values[3];
 
-    TEST_CHECK(fabs(*a - 0.5 * (2 * 4 + 4 * 2)) < EPS);
-    TEST_CHECK(fabs(*d - 0.5 * (3 * 5 + 5 * 3)) < EPS);
+    TEST_CHECK(fabs(a - 0.5 * (2 * 4 + 4 * 2)) < EPS);
+    TEST_CHECK(fabs(d - 0.5 * (3 * 5 + 5 * 3)) < EPS);
 
-    TEST_CHECK(*b == 0.0);
-    TEST_CHECK(*c == 0.0);
+    TEST_CHECK(b == 0.0);
+    TEST_CHECK(c == 0.0);
 
     Matrix_free(&A);
     Matrix_free(&B);
@@ -471,7 +484,7 @@ void test_matrix_outer(void)
     {
         for (size_t j = 0; j < N; j++)
         {
-            const double true_val = v1_values[i] * v2_values[j];
+            const real_t true_val = v1_values[i] * v2_values[j];
             real_t val            = M_values[i * N + j];
             DEBUG_PRINT("true: %f, val: %f\n", true_val, val);
             TEST_CHECK(fabs(true_val - val) < EPS);

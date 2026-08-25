@@ -3,6 +3,7 @@
 
 // Macros that may be overwritten in the project can be defined here.
 
+#include "defines.h"
 #include <complex.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -39,19 +40,19 @@
 
 #define FMA(upper, target, a, b)                                               \
     for (size_t n = 0; n < upper; n++)                                         \
-    target += (a) * (b)
+        target += (a) * (b);
 
 #define ADD(upper, a, b)                                                       \
     for (size_t n = 0; n < upper; n++)                                         \
-    a += b
+        a += b;
 
 #define SUB(upper, a, b)                                                       \
     for (size_t n = 0; n < upper; n++)                                         \
-    a -= b
+        a -= b;
 
 #define SCALE(upper, a, b)                                                     \
     for (size_t n = 0; n < upper; n++)                                         \
-    a *= b
+        a *= b;
 
 #define PARALLEL_THRESHOLD 100000000
 #define PRINT_COMPLEX(v)                                                       \

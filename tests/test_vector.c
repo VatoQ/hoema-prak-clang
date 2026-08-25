@@ -1,3 +1,4 @@
+#define DEBUG
 #include "../include/vector.h"
 #include "acutest.h"
 #include <math.h>
@@ -56,7 +57,7 @@ static void set_real(Vector* v, size_t i, double x)
 
 void test_new_vals_real(void)
 {
-    double init[3] = { 1.0, 2.0, 3.0 };
+    real_t init[3] = { 1.0, 2.0, 3.0 };
     Vector v       = Vector_new_vals(3, init, Real);
 
     TEST_CHECK(v.dim == 3);
@@ -64,6 +65,7 @@ void test_new_vals_real(void)
     for (size_t i = 0; i < 3; i++)
     {
         real_t val = v_values[i];
+        DEBUG_PRINT("a: %f\n", val);
         TEST_CHECK(fabs(val - init[i]) < EPS);
     }
 
@@ -144,14 +146,14 @@ void test_get_set_item_int(void)
 {
     Vector v = Vector_zeros(3, Int);
 
-    real_t x;
+    int_t x;
     TEST_CHECK(Vector_get_at(&x, &v, 1) == VECTOR_SUCCESS);
     TEST_CHECK(x == 0.0);
 
-    real_t newval = 7.0;
+    int_t newval = 7.0;
     TEST_CHECK(Vector_set_item(&v, 1, &newval) == VECTOR_SUCCESS);
-    ACCESS_VOID(real_t, v_values, v.values);
-    TEST_CHECK(v_values[1] == 7.0);
+    ACCESS_VOID(int_t, v_values, v.values);
+    TEST_CHECK(v_values[1] == 7);
 
     Vector_free(&v);
 }
@@ -235,10 +237,10 @@ void test_random_normal_real(void)
 
 void test_norm_real(void)
 {
-    double a[3] = { 3.0, 4.0, 12.0 };
+    real_t a[3] = { 3.0, 4.0, 12.0 };
     Vector v    = Vector_new_vals(3, a, Real);
 
-    double n = Vector_norm(&v);
+    real_t n = Vector_norm(&v);
     TEST_CHECK(fabs(n - 13.0) < 1e-12);
 
     Vector_free(&v);
@@ -257,8 +259,8 @@ void test_norm_complex(void)
 
 void test_add_sub_real(void)
 {
-    double a[3] = { 1.0, 2.0, 3.0 };
-    double b[3] = { 4.0, 5.0, 6.0 };
+    real_t a[3] = { 1.0, 2.0, 3.0 };
+    real_t b[3] = { 4.0, 5.0, 6.0 };
 
     Vector u = Vector_new_vals(3, a, Real);
     Vector v = Vector_new_vals(3, b, Real);
@@ -302,13 +304,13 @@ void test_broad_add_sub(void)
 
 void test_dot_real(void)
 {
-    double a[3] = { 1.0, 2.0, 3.0 };
-    double b[3] = { 4.0, -1.0, 2.0 };
+    real_t a[3] = { 1.0, 2.0, 3.0 };
+    real_t b[3] = { 4.0, -1.0, 2.0 };
 
     Vector u = Vector_new_vals(3, a, Real);
     Vector v = Vector_new_vals(3, b, Real);
 
-    double dp;
+    real_t dp;
     TEST_CHECK(Vector_dot(&dp, &u, &v) == VECTOR_SUCCESS);
     TEST_CHECK(fabs(dp - (1 * 4 + 2 * (-1) + 3 * 2)) < 1e-12);
 
@@ -318,18 +320,18 @@ void test_dot_real(void)
 
 void test_dot_complex(void)
 {
-    complex double a[2] = { 1.0 + 2.0 * I, 3.0 + 4.0 * I };
-    complex double b[2] = { 2.0 + 0.0 * I, -1.0 + 1.0 * I };
+    complex_t a[2] = { 1.0 + 2.0 * I, 3.0 + 4.0 * I };
+    complex_t b[2] = { 2.0 + 0.0 * I, -1.0 + 1.0 * I };
 
     Vector u = Vector_new_vals(2, a, Complex);
     Vector v = Vector_new_vals(2, b, Complex);
 
-    double dp;
+    complex_t dp;
     TEST_CHECK(Vector_dot(&dp, &u, &v) == VECTOR_SUCCESS);
 
     complex double expected = (a[0] * b[0]) + (a[1] * b[1]);
 
-    TEST_CHECK(fabs(dp - creal(expected)) < 1e-12);
+    TEST_CHECK(fabs(creal(dp) - creal(expected)) < 1e-12);
 
     Vector_free(&u);
     Vector_free(&v);
@@ -341,7 +343,7 @@ void test_dot_complex(void)
 
 void test_sort_real(void)
 {
-    double a[5] = { 5, 1, 4, 3, 2 };
+    real_t a[5] = { 5, 1, 4, 3, 2 };
     Vector v    = Vector_new_vals(5, a, Real);
 
     Vector sorted = Vector_zeros(5, Real);
@@ -350,18 +352,20 @@ void test_sort_real(void)
     ACCESS_VOID(real_t, sorted_values, sorted.values);
     for (size_t i = 0; i < 5; i++)
     {
-        TEST_CHECK(sorted_values[i] == (double)(i + 1));
+        TEST_CHECK(sorted_values[i] == (real_t)(i + 1));
     }
 
     TEST_CHECK(Vector_sort_inplace(&v) == VECTOR_SUCCESS);
     ACCESS_VOID(real_t, v_values, v.values);
     for (size_t i = 0; i < 5; i++)
-        TEST_CHECK(v_values[i] == (double)(i + 1));
+    {
+        TEST_CHECK(v_values[i] == (real_t)(i + 1));
+    }
 
     Vector_free(&v);
     Vector_free(&sorted);
 
-    const double count = 5000;
+    const size_t count = 5000;
     const double min   = 10;
     const double max   = 1000;
     Vector large       = Vector_new_random_uniform(count, min, max, Real);
@@ -382,10 +386,10 @@ void test_sort_real(void)
 
 void test_max_min_real(void)
 {
-    double a[5] = { -1, 10, 3, 7, 2 };
+    real_t a[5] = { -1, 10, 3, 7, 2 };
     Vector v    = Vector_new_vals(5, a, Real);
 
-    double mx, mn;
+    real_t mx, mn;
     Vector_max(&mx, &v);
     Vector_min(&mn, &v);
 
@@ -419,9 +423,9 @@ void test_dot(void)
     ACCESS_VOID(int_t, u_values, u.values);
     ACCESS_VOID(int_t, v_values, v.values);
 
-    double dot;
+    real_t dot;
     Vector_dot(&dot, &u, &v);
-    double dot_expected = 0;
+    real_t dot_expected = 0;
     for (size_t i = 0; i < N; i++)
     {
         dot_expected += u_values[i] * v_values[i];

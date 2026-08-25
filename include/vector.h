@@ -2,7 +2,6 @@
 #define VECTOR_H
 
 #define ZERO_INIT 0.0
-#define EPS 10e-8
 #define GRAD_EPS 10e-5
 #define MAX_STEP 25
 
@@ -19,6 +18,7 @@ typedef enum
 #include "config.h"
 #include <stddef.h>
 
+#define EPS (sizeof(real_t) < 8 ? 1e-4 : 1e-8)
 /**
  * Type for mathematical vector operations.
  *
@@ -165,7 +165,7 @@ int Vector_at(void* target, const Vector* v, const size_t index);
  * @param index Index of the data
  * @return `VECTOR_DIMENSION_ERROR` or `VECTOR_SUCCESS`
  */
-int Vector_get_at(double* target, const Vector* v, const size_t index);
+int Vector_get_at(void* target, const Vector* v, const size_t index);
 
 /**
  * @brief Set the element at the specified index in vector `v`.
@@ -302,7 +302,7 @@ int Vector_broadcast_sub(Vector* target, const void* a);
  * @param v Second vector.
  * @return `VECTOR_SUCCESS` or `VECTOR_DIMENSION_ERROR`
  */
-int Vector_dot(double* target, const Vector* u, const Vector* v);
+int Vector_dot(void* target, const Vector* u, const Vector* v);
 
 // /**
 //  * @brief Numerical approximation of \[\nabla(f(x))\].
