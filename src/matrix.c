@@ -1,3 +1,4 @@
+// #define DEBUG
 #define _POSIX_C_SOURCE 200112L
 #include "../include/matrix.h"
 #include "../include/logging.h"
@@ -470,42 +471,11 @@ Matrix Matrix_diag(const Vector* v)
     return M;
 }
 
-void _init_vals_int(const size_t n, void* vals, const void* val)
-{
-    ACCESS_VOID(int_t, vals_r, vals);
-    ACCESS_VOID(int_t, val_r, val_r);
-    INITIALIZER(n, vals_r, val_r);
-}
-
-void _init_vals_real(const size_t n, void* vals, const void* val)
-{
-    ACCESS_VOID(real_t, vals_r, vals);
-    ACCESS_VOID(real_t, val_r, val_r);
-    INITIALIZER(n, vals_r, val_r);
-}
-
-void _init_vals_cmpl(const size_t n, void* vals, const void* val)
-{
-    ACCESS_VOID(complex_t, vals_r, vals);
-    ACCESS_VOID(complex_t, val_r, val_r);
-    INITIALIZER(n, vals_r, val_r);
-}
-
-void (*_init_vals_units[TYPE_COUNT])(const size_t n,
-                                     void* vals,
-                                     const void* val) = {
-    [Int]     = _init_vals_int,
-    [Real]    = _init_vals_real,
-    [Complex] = _init_vals_cmpl,
-};
-
 Matrix Matrix_diag_val(const size_t n, const void* val, const DataType dt)
 {
-    Matrix M   = Matrix_zeros(n, n, dt);
-    void* vals = calloc(n, elem_size(dt));
-    _init_vals_units[dt](n, vals, val);
-    _diag_helper_workers[dt](M.values, n, vals);
-    free(vals);
+    Vector v = Vector_new(n, val, dt);
+    Matrix M = Matrix_diag(&v);
+    Vector_free(&v);
     return M;
 }
 
