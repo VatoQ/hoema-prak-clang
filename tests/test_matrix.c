@@ -302,15 +302,15 @@ void test_matrix_diag_val(void)
     TEST_CHECK(D.m == N);
     TEST_CHECK(D.n == N);
     ACCESS_VOID(real_t, D_values, D.values);
+    DEBUG_CODE(Matrix_print(&D));
 
     for (size_t i = 0; i < N; i++)
     {
         for (size_t j = 0; j < N; j++)
         {
-            const double a = D_values[i * N + j];
+            const real_t a = D_values[i * N + j];
             if (i == j)
             {
-
                 TEST_CHECK(fabs(a - val) < EPS);
             }
             else
