@@ -545,7 +545,7 @@ int Vector_at(void* target, const Vector* v, const size_t index)
     return VECTOR_SUCCESS;
 }
 
-int Vector_get_at(double* target, const Vector* v, const size_t index)
+int Vector_get_at(void* target, const Vector* v, const size_t index)
 {
     if (index >= v->dim)
     {
@@ -1298,7 +1298,7 @@ int Vector_add(Vector* target, const Vector* v)
     return VECTOR_SUCCESS;
 }
 
-static int _dot_int_s(double* target, const Vector* u, const Vector* v)
+static int _dot_int_s(void* target, const Vector* u, const Vector* v)
 {
     int_t s                  = 0;
     int_t* restrict u_values = u->values;
@@ -1306,11 +1306,11 @@ static int _dot_int_s(double* target, const Vector* u, const Vector* v)
 
 #pragma omp simd
     FMA(u->dim, s, u_values[n], v_values[n]);
-    *target = s;
+    ASSIGN_UNTYPED(int_t, target, &s);
     return VECTOR_SUCCESS;
 }
 
-static int _dot_int_p(double* target, const Vector* u, const Vector* v)
+static int _dot_int_p(void* target, const Vector* u, const Vector* v)
 {
     int_t s                  = 0;
     int_t* restrict u_values = u->values;
@@ -1318,11 +1318,11 @@ static int _dot_int_p(double* target, const Vector* u, const Vector* v)
 
 #pragma omp parallel for reduction(+ : s)
     FMA(u->dim, s, u_values[n], v_values[n]);
-    *target = s;
+    ASSIGN_UNTYPED(int_t, target, &s);
     return VECTOR_SUCCESS;
 }
 
-static int _dot_real_s(double* target, const Vector* u, const Vector* v)
+static int _dot_real_s(void* target, const Vector* u, const Vector* v)
 {
     real_t s                  = 0;
     real_t* restrict u_values = u->values;
@@ -1330,11 +1330,11 @@ static int _dot_real_s(double* target, const Vector* u, const Vector* v)
 
 #pragma omp simd
     FMA(u->dim, s, u_values[n], v_values[n]);
-    *target = s;
+    ASSIGN_UNTYPED(real_t, target, &s);
     return VECTOR_SUCCESS;
 }
 
-static int _dot_real_p(double* target, const Vector* u, const Vector* v)
+static int _dot_real_p(void* target, const Vector* u, const Vector* v)
 {
     real_t s                  = 0;
     real_t* restrict u_values = u->values;
@@ -1342,11 +1342,11 @@ static int _dot_real_p(double* target, const Vector* u, const Vector* v)
 
 #pragma omp parallel for reduction(+ : s)
     FMA(u->dim, s, u_values[n], v_values[n]);
-    *target = s;
+    ASSIGN_UNTYPED(real_t, target, &s);
     return VECTOR_SUCCESS;
 }
 
-static int _dot_cmpl_s(double* target, const Vector* u, const Vector* v)
+static int _dot_cmpl_s(void* target, const Vector* u, const Vector* v)
 {
     complex_t s                  = 0;
     complex_t* restrict u_values = u->values;
@@ -1354,11 +1354,11 @@ static int _dot_cmpl_s(double* target, const Vector* u, const Vector* v)
 
 #pragma omp simd
     FMA(u->dim, s, u_values[n], v_values[n]);
-    *target = s;
+    ASSIGN_UNTYPED(complex_t, target, &s);
     return VECTOR_SUCCESS;
 }
 
-static int _dot_cmpl_p(double* target, const Vector* u, const Vector* v)
+static int _dot_cmpl_p(void* target, const Vector* u, const Vector* v)
 {
     complex_t s                  = 0;
     complex_t* restrict u_values = u->values;
@@ -1366,11 +1366,11 @@ static int _dot_cmpl_p(double* target, const Vector* u, const Vector* v)
 
 #pragma omp parallel for reduction(+ : s)
     FMA(u->dim, s, u_values[n], v_values[n]);
-    *target = s;
+    ASSIGN_UNTYPED(complex_t, target, &s);
     return VECTOR_SUCCESS;
 }
 
-static int (*_dot_units_s[TYPE_COUNT])(double* target,
+static int (*_dot_units_s[TYPE_COUNT])(void* target,
                                        const Vector* u,
                                        const Vector* v) = {
     [Int]     = _dot_int_s,
@@ -1378,7 +1378,7 @@ static int (*_dot_units_s[TYPE_COUNT])(double* target,
     [Complex] = _dot_cmpl_s
 };
 
-static int (*_dot_units_p[TYPE_COUNT])(double* target,
+static int (*_dot_units_p[TYPE_COUNT])(void* target,
                                        const Vector* u,
                                        const Vector* v) = {
     [Int]     = _dot_int_p,
@@ -1386,19 +1386,19 @@ static int (*_dot_units_p[TYPE_COUNT])(double* target,
     [Complex] = _dot_cmpl_p
 };
 
-static int _dot_scalar(double* target, const Vector* u, const Vector* v)
+static int _dot_scalar(void* target, const Vector* u, const Vector* v)
 {
     DataType dt = MAX(u->dt, v->dt);
     return _dot_units_s[dt](target, u, v);
 }
 
-static int _dot_parallel(double* target, const Vector* u, const Vector* v)
+static int _dot_parallel(void* target, const Vector* u, const Vector* v)
 {
     DataType dt = MAX(u->dt, v->dt);
     return _dot_units_p[dt](target, u, v);
 }
 
-int Vector_dot(double* target, const Vector* u, const Vector* v)
+int Vector_dot(void* target, const Vector* u, const Vector* v)
 {
     if (!Vector_dimension_match(u, v))
     {
