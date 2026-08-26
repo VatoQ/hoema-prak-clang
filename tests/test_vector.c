@@ -425,14 +425,14 @@ void test_dot(void)
     ACCESS_VOID(int_t, u_values, u.values);
     ACCESS_VOID(int_t, v_values, v.values);
 
-    real_t dot;
+    int_t dot;
     Vector_dot(&dot, &u, &v);
-    real_t dot_expected = 0;
+    int_t dot_expected = 0;
     for (size_t i = 0; i < N; i++)
     {
         dot_expected += u_values[i] * v_values[i];
     }
-    TEST_CHECK(fabs(dot - dot_expected) < EPS);
+    TEST_CHECK(dot == dot_expected);
 }
 
 /* ============================================================
