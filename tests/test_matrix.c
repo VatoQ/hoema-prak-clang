@@ -198,11 +198,11 @@ void test_matrix_set_get(void)
 {
     Matrix M = Matrix_new(4, 4, Real);
 
-    double set_val = 9.81;
+    real_t set_val = 9.81;
     int status     = Matrix_set_at(&M, 2, 3, &set_val);
     TEST_CHECK(status == MATRIX_SUCCESS);
 
-    double val = 0.0;
+    real_t val = 0.0;
     status     = Matrix_get_at(&val, &M, 2, 3);
     TEST_CHECK(status == MATRIX_SUCCESS);
     TEST_CHECK(fabs(val - 9.81) < EPS);
