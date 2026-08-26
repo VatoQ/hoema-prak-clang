@@ -60,10 +60,6 @@
 
 #define MAX(a, b) (a > b) ? a : b
 
-// typedef long int_t;
-// typedef double real_t;
-// typedef complex double complex_t;
-
 #ifndef int_t
 #define int_t long
 #endif
