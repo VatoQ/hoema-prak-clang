@@ -1,6 +1,7 @@
-#define DEBUG
+// #define DEBUG
 #include "../include/vector.h"
 #include "acutest.h"
+#include <complex.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -207,7 +208,7 @@ void test_random_uniform_real(void)
     ACCESS_VOID(real_t, v_values, v.values);
     for (size_t i = 0; i < 100; i++)
     {
-        double x = v_values[i];
+        real_t x = v_values[i];
         TEST_CHECK(x >= -1.0 && x <= 1.0);
     }
 
@@ -220,12 +221,12 @@ void test_random_normal_real(void)
 
     Vector v = Vector_new_random_normal(200, 0.0, 1.0, Real);
 
-    double sum = 0.0;
+    real_t sum = 0.0;
     ACCESS_VOID(real_t, v_values, v.values);
     for (size_t i = 0; i < 200; i++)
         sum += v_values[i];
 
-    double mean = sum / 200.0;
+    real_t mean = sum / 200.0;
     TEST_CHECK(fabs(mean) < 0.3);
 
     Vector_free(&v);
@@ -332,6 +333,7 @@ void test_dot_complex(void)
     complex double expected = (a[0] * b[0]) + (a[1] * b[1]);
 
     TEST_CHECK(fabs(creal(dp) - creal(expected)) < 1e-12);
+    TEST_CHECK(fabs(cimag(dp) - cimag(expected)) < 1e-12);
 
     Vector_free(&u);
     Vector_free(&v);
