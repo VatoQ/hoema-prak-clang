@@ -4,10 +4,13 @@
 #define DGL_SYSTEM 1
 #define DGL_NTH_ORDER 2
 
-#define DGL_BASIC_ERROR -10
-#define DGL_MATH_ERROR -20
-#define DGL_BASIC_SUCCESS 10
-#define DGL_MATH_SUCCESS 20
+typedef enum
+{
+    DGL_SUCCESS,
+    DGL_BASIC_ERROR,
+    DGL_MATH_ERROR,
+} DGLStatus;
+
 #include "vector.h"
 
 typedef struct

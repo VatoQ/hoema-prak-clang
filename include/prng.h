@@ -14,7 +14,6 @@ typedef struct
 {
     size_t state;
     size_t aux;
-
 } PRNG_State;
 
 /**

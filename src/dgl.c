@@ -7,13 +7,13 @@ int derivatives(DGL_Result* target, const DGL* self, const Vector* y, double x)
     if (self->dgl_type == DGL_SYSTEM)
     {
         target->x_system = self->f_dgl_system(y, x);
-        return DGL_BASIC_SUCCESS;
+        return DGL_SUCCESS;
     }
     else if (self->dgl_type == DGL_NTH_ORDER)
     {
         target->x_order = self->f_dgl_nth_order(y, x);
 
-        return DGL_BASIC_SUCCESS;
+        return DGL_SUCCESS;
     }
     else
     {

@@ -498,7 +498,6 @@ static void _set_at_int(void* M_values, const size_t index, const void* value)
 
 static void _set_at_real(void* M_values, const size_t index, const void* value)
 {
-
     double* v      = (double*)value;
     void* ptr      = M_values + index;
     double* target = (double*)ptr;
@@ -538,26 +537,20 @@ int Matrix_set_at(Matrix* M, const size_t m, const size_t n, const void* value)
 
 static void _get_at_int(const void* M_values, const size_t index, void* target)
 {
-    const void* ptr    = M_values + index;
-    const long* source = (long*)ptr;
-    long* target_ptr   = (long*)target;
-    *target_ptr        = *source;
+    ACCESS_VOID(int_t, M_value, M_values + index);
+    ASSIGN_UNTYPED(int_t, target, M_value);
 }
 
 static void _get_at_real(const void* M_values, const size_t index, void* target)
 {
-    const void* ptr      = M_values + index;
-    const double* source = (double*)ptr;
-    double* target_ptr   = (double*)target;
-    *target_ptr          = *source;
+    ACCESS_VOID(real_t, M_value, M_values + index);
+    ASSIGN_UNTYPED(real_t, target, M_value);
 }
 
 static void _get_at_cmpl(const void* M_values, const size_t index, void* target)
 {
-    const void* ptr              = M_values + index;
-    const complex double* source = (complex double*)ptr;
-    complex double* target_ptr   = (complex double*)target;
-    *target_ptr                  = *source;
+    ACCESS_VOID(complex_t, M_value, M_values + index);
+    ASSIGN_UNTYPED(complex_t, target, M_value);
 }
 
 static void (*_get_at_helpers[TYPE_COUNT])(const void* M_values,
