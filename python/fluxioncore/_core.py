@@ -41,9 +41,9 @@ class VectorStatus(IntEnum):
 class DataType(IntEnum):
     """Supported numerical data types in the C library."""
     # Assuming from config.h that these are defined; adjust if needed
-    FLOAT = 0
-    DOUBLE = 1
-    COMPLEX_DOUBLE = 2
+    INT = 0
+    REAL = 1
+    COMPLEX = 2
 
 
 class NormType(IntEnum):
@@ -221,7 +221,7 @@ def _setup_function_signatures(lib: ctypes.CDLL) -> None:
     lib.Matrix_sub.restype = c_int
     
     # Matrix_scale(Matrix* target, complex double lambda) -> void
-    lib.Matrix_scale.argtypes = [POINTER(CMatrix), ctypes.c_complex]
+    lib.Matrix_scale.argtypes = [POINTER(CMatrix), ctypes.c_double_complex]
     lib.Matrix_scale.restype = None
     
     # Matrix_Matrix_dot(Matrix* target, const Matrix* M1, const Matrix* M2) -> int
@@ -415,11 +415,11 @@ def ensure_signatures() -> ctypes.CDLL:
 
 def _get_element_size(dt: int) -> int:
     """Get the size in bytes of a single element for a DataType."""
-    if dt == DataType.FLOAT:
+    if dt == DataType.INT:
         return 4  # sizeof(float)
-    elif dt == DataType.DOUBLE:
+    elif dt == DataType.REAL:
         return 8  # sizeof(double)
-    elif dt == DataType.COMPLEX_DOUBLE:
+    elif dt == DataType.COMPLEX:
         return 16  # sizeof(double complex) = 2 * sizeof(double)
     else:
         raise ValueError(f"Unknown DataType: {dt}")
@@ -438,12 +438,12 @@ def _python_to_c_array(data: list, dt: int) -> c_void_p:
     """
     element_size = _get_element_size(dt)
     
-    if dt == DataType.FLOAT:
-        c_array = (ctypes.c_float * len(data))(*data)
-    elif dt == DataType.DOUBLE:
+    if dt == DataType.INT:
+        c_array = (ctypes.c_long * len(data))(*data)
+    elif dt == DataType.REAL:
         c_array = (ctypes.c_double * len(data))(*data)
-    elif dt == DataType.COMPLEX_DOUBLE:
-        c_array = (ctypes.c_complex * len(data))(*data)
+    elif dt == DataType.COMPLEX:
+        c_array = (ctypes.c_double_complex * len(data))(*data)
     else:
         raise ValueError(f"Unknown DataType: {dt}")
     
@@ -465,12 +465,12 @@ def _c_array_to_python(ptr: c_void_p, size: int, dt: int) -> list:
     if ptr is None or ptr == 0:
         return []
     
-    if dt == DataType.FLOAT:
+    if dt == DataType.INT:
         c_array = ctypes.cast(ptr, POINTER(ctypes.c_float * size))
-    elif dt == DataType.DOUBLE:
+    elif dt == DataType.REAL:
         c_array = ctypes.cast(ptr, POINTER(ctypes.c_double * size))
-    elif dt == DataType.COMPLEX_DOUBLE:
-        c_array = ctypes.cast(ptr, POINTER(ctypes.c_complex * size))
+    elif dt == DataType.COMPLEX:
+        c_array = ctypes.cast(ptr, POINTER(ctypes.c_double_complex * size))
     else:
         raise ValueError(f"Unknown DataType: {dt}")
     
@@ -482,12 +482,12 @@ def _get_scalar_value(ptr: c_void_p, dt: int):
     if ptr is None or ptr == 0:
         return None
     
-    if dt == DataType.FLOAT:
+    if dt == DataType.INT:
         return ctypes.cast(ptr, POINTER(ctypes.c_float))[0]
-    elif dt == DataType.DOUBLE:
+    elif dt == DataType.REAL:
         return ctypes.cast(ptr, POINTER(ctypes.c_double))[0]
-    elif dt == DataType.COMPLEX_DOUBLE:
-        return ctypes.cast(ptr, POINTER(ctypes.c_complex))[0]
+    elif dt == DataType.COMPLEX:
+        return ctypes.cast(ptr, POINTER(ctypes.c_double_complex))[0]
     else:
         raise ValueError(f"Unknown DataType: {dt}")
 
