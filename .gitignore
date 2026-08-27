@@ -3,3 +3,5 @@
 bin
 .opt_details.txt
 opt_report.txt
+python/fluxioncore/__pycache__
+*.so
