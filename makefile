@@ -42,6 +42,28 @@ src/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # ---------------------------------------------------------
+# PYTHON API SHARED LIBRARY SECTION
+# ---------------------------------------------------------
+PYTHON_SO = python/fluxioncore/libfluxioncore.so
+PYTHON_CFLAGS = -O3 -march=native -ffast-math -fPIC -Iinclude -fopenmp -std=c17
+
+PYTHON_OBJ = python_objects
+$(PYTHON_OBJ):
+	mkdir -p $(PYTHON_OBJ)
+
+# Compile core sources for shared library (position-independent code)
+$(PYTHON_OBJ)/%.o: src/%.c | $(PYTHON_OBJ)
+	$(CC) $(PYTHON_CFLAGS) -c $< -o $@
+
+# Build shared library
+.PHONY: python
+python: $(PYTHON_SO)
+
+$(PYTHON_SO): $(addprefix $(PYTHON_OBJ)/, $(notdir $(CORE_OBJ)))
+	mkdir -p $(dir $(PYTHON_SO))
+	$(CC) $(PYTHON_CFLAGS) -shared -o $@ $^ $(LDFLAGS)
+
+# ---------------------------------------------------------
 # TEST BUILDING SECTION
 # ---------------------------------------------------------
 TESTS = $(basename $(notdir $(wildcard $(TEST_DIR)/*.c)))
@@ -129,4 +151,5 @@ $(BIN_DIR)/bench_%: $(BENCH_DIR)/bench_%.c $(CORE_OBJ) | $(BIN_DIR)
 clean:
 	rm -f $(CORE_OBJ) $(MAIN_OBJ)
 	rm -rf $(BIN_DIR)
+	rm -rf $(PYTHON_OBJ) $(PYTHON_SO)
 
