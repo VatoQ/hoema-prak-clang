@@ -13,6 +13,8 @@ from ._core import (
     ensure_signatures,
 )
 
+from .matrix import Matrix
+
 __all__ = [
     "DataType",
     "NormType",
