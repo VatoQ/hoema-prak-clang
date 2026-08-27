@@ -177,10 +177,12 @@ static void _set_normal_compl(void* values,
                               double mean,
                               double variance)
 {
-    ACCESS_VOID(real_t, values_t, values);
+    ACCESS_VOID(complex_t, values_t, values);
     for (size_t i = 0; i < size; i++)
     {
-        values_t[i] = (complex_t)PRNG_State_normal(prng, mean, variance);
+        double a    = PRNG_State_normal(prng, mean, variance);
+        double b    = PRNG_State_normal(prng, mean, variance);
+        values_t[i] = a + b * I;
     }
 }
 
