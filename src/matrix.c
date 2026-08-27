@@ -151,11 +151,10 @@ static void _set_normal_int(void* values,
                             double mean,
                             double variance)
 {
+    ACCESS_VOID(int_t, values_t, values);
     for (size_t i = 0; i < size; i++)
     {
-        void* ptr = values + i;
-        long* val = (long*)ptr;
-        *val      = (long)PRNG_State_normal(prng, mean, variance);
+        values_t[i] = (int_t)PRNG_State_normal(prng, mean, variance);
     }
 }
 
@@ -165,11 +164,10 @@ static void _set_normal_real(void* values,
                              double mean,
                              double variance)
 {
+    ACCESS_VOID(real_t, values_t, values);
     for (size_t i = 0; i < size; i++)
     {
-        void* ptr   = values + i;
-        double* val = (double*)ptr;
-        *val        = (double)PRNG_State_normal(prng, mean, variance);
+        values_t[i] = (real_t)PRNG_State_normal(prng, mean, variance);
     }
 }
 
@@ -179,13 +177,10 @@ static void _set_normal_compl(void* values,
                               double mean,
                               double variance)
 {
+    ACCESS_VOID(real_t, values_t, values);
     for (size_t i = 0; i < size; i++)
     {
-        void* ptr           = values + i;
-        complex double* val = (complex double*)ptr;
-        double a            = PRNG_State_normal(prng, mean, variance);
-        double b            = PRNG_State_normal(prng, mean, variance);
-        *val                = a + b * I;
+        values_t[i] = (complex_t)PRNG_State_normal(prng, mean, variance);
     }
 }
 
