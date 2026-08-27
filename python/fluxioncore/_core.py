@@ -425,7 +425,7 @@ def _get_element_size(dt: int) -> int:
         raise ValueError(f"Unknown DataType: {dt}")
 
 
-def _python_to_c_array(data: list, dt: int) -> c_void_p:
+def _python_to_c_array(data: list[int|float|complex], dt: int) -> c_void_p:
     """
     Convert Python list to ctypes array and return as void pointer.
     
@@ -450,7 +450,7 @@ def _python_to_c_array(data: list, dt: int) -> c_void_p:
     return ctypes.cast(c_array, c_void_p)
 
 
-def _c_array_to_python(ptr: c_void_p, size: int, dt: int) -> list:
+def _c_array_to_python(ptr: c_void_p, size: int, dt: int) -> list[int|float|complex]:
     """
     Convert C array back to Python list.
     
