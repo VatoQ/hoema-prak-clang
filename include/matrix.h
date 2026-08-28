@@ -40,6 +40,7 @@
 ////////////////////////////////
 
 #include "config.h"
+#include "defines.h"
 #include <complex.h>
 #include <stdbool.h>
 #define MATRIX_EPS 1e-4
@@ -192,7 +193,7 @@ static void Matrix_prepare_target(Matrix* target,
                                   const size_t n,
                                   DataType dt);
 
-void Matrix_norm(void* target, const Matrix* M, NormType nt);
+void Matrix_norm(real_t* target, const Matrix* M, NormType nt);
 
 /**
  * @brief Add `M` to `target`. Equivalent to `target += M`.
