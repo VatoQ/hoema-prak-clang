@@ -656,50 +656,48 @@ void Matrix_max(void* target, const Matrix* M)
 
 static void _min_int(void* target, const Matrix* M)
 {
-    long min = LONG_MAX;
+    int_t min;
+    get_limit(&min, Int, Max);
+    ACCESS_VOID(int_t, M_values, M->values);
     for (int i = 0; i < M->m * M->n; i++)
     {
-        void* ptr = M->values + i;
-        long* val = (long*)ptr;
-        if (*val < min)
+
+        if (M_values[i] < min)
         {
-            min = *val;
+            min = M_values[i];
         }
     }
-    long* target_val = (long*)target;
-    *target_val      = min;
+    ASSIGN_UNTYPED(int_t, target, &min);
 }
 
 static void _min_real(void* target, const Matrix* M)
 {
-    double min = INFINITY;
+    real_t min;
+    get_limit(&min, Real, Max);
+    ACCESS_VOID(int_t, M_values, M->values);
     for (int i = 0; i < M->m * M->n; i++)
     {
-        void* ptr   = M->values + i;
-        double* val = (double*)ptr;
-        if (*val < min)
+        if (M_values[i] < min)
         {
-            min = *val;
+            min = M_values[i];
         }
     }
-    double* target_val = (double*)target;
-    *target_val        = min;
+    ASSIGN_UNTYPED(real_t, target, &min);
 }
 
 static void _min_cmpl(void* target, const Matrix* M)
 {
-    double max = INFINITY;
+    real_t min;
+    get_limit(&min, Real, Max);
+    ACCESS_VOID(complex_t, M_values, M->values);
     for (int i = 0; i < M->m * M->n; i++)
     {
-        void* ptr           = M->values + i;
-        complex double* val = (complex double*)ptr;
-        if (cabs(*val) < max)
+        if (cabs(M_values[i]) < min)
         {
-            max = *val;
+            min = cabs(M_values[i]);
         }
     }
-    double* target_val = (double*)target;
-    *target_val        = max;
+    ASSIGN_UNTYPED(real_t, target, &min);
 }
 
 static void (*_min_helpers[TYPE_COUNT])(void* target, const Matrix* M) = {
@@ -870,52 +868,36 @@ void Matrix_print(const Matrix* M)
     _printers[M->dt](M);
 }
 
-static void _frobenius_helper_int(void* target, const Matrix* M)
+static void _frobenius_helper_int(real_t* target, const Matrix* M)
 {
-    long s = 0;
-    for (size_t i = 0; i < M->m * M->n; i++)
-    {
-        void* ptr1 = M->values + i;
-        void* ptr2 = M->values + i;
-        long* val1 = (long*)ptr1;
-        long* val2 = (long*)ptr2;
-
-        s += *val1 * *val2;
-    }
-    memcpy(target, &s, elem_size(Int));
+    int_t s = 0;
+    ACCESS_VOID(int_t, M_values, M->values);
+    FMA(M->m * M->n, s, M_values[n], M_values[n]);
+    real_t norm = sqrt(s);
+    ASSIGN_UNTYPED(real_t, target, &norm);
 }
 
-static void _frobenius_helper_real(void* target, const Matrix* M)
+static void _frobenius_helper_real(real_t* target, const Matrix* M)
 {
-    double s = 0;
-    for (size_t i = 0; i < M->m * M->n; i++)
-    {
-        void* ptr1   = M->values + i;
-        void* ptr2   = M->values + i;
-        double* val1 = (double*)ptr1;
-        double* val2 = (double*)ptr2;
-
-        s += *val1 * *val2;
-    }
-    memcpy(target, &s, elem_size(Real));
+    real_t s = 0;
+    ACCESS_VOID(real_t, M_values, M->values);
+    FMA(M->m * M->n, s, M_values[n], M_values[n]);
+    real_t norm = (real_t)sqrt(s);
+    ASSIGN_UNTYPED(real_t, target, &norm);
 }
 
-static void _frobenius_helper_cmpl(void* target, const Matrix* M)
+static void _frobenius_helper_cmpl(real_t* target, const Matrix* M)
 {
-    complex double s = 0;
-    for (size_t i = 0; i < M->m * M->n; i++)
-    {
-        void* ptr1           = M->values + i;
-        void* ptr2           = M->values + i;
-        complex double* val1 = (complex double*)ptr1;
-        complex double* val2 = (complex double*)ptr2;
-
-        s += *val1 * *val2;
-    }
-    memcpy(target, &s, elem_size(Complex));
+    complex_t s = 0;
+    ACCESS_VOID(complex_t, M_values, M->values);
+    FMA(
+      M->m * M->n, s, M_values[n], creal(M_values[n]) - cimag(M_values[n]) * I);
+    real_t norm = sqrt(creal(s));
+    ASSIGN_UNTYPED(complex_t, target, &norm);
 }
 
-static void (*_frobenius_helpers[TYPE_COUNT])(void* target, const Matrix* M) = {
+static void (*_frobenius_helpers[TYPE_COUNT])(double* target,
+                                              const Matrix* M) = {
     [Int]     = _frobenius_helper_int,
     [Real]    = _frobenius_helper_real,
     [Complex] = _frobenius_helper_cmpl
@@ -925,7 +907,6 @@ static void _spectral_helper(void* target, const Matrix* M)
 {
     Vector eigvals = Vector_zeros(M->n, M->dt);
     Matrix_eigvals(&eigvals, M, true);
-    // TODO: correct eigval logic
     void* eig_ptr     = eigvals.values + M->n - 1;
     double* eig_ptr_t = (double*)eig_ptr;
     memcpy(target, eig_ptr_t, elem_size(M->dt));
@@ -933,7 +914,7 @@ static void _spectral_helper(void* target, const Matrix* M)
     Vector_free(&eigvals);
 }
 
-void Matrix_norm(void* target, const Matrix* M, NormType nt)
+void Matrix_norm(real_t* target, const Matrix* M, NormType nt)
 {
     double result = 0;
     switch (nt)
@@ -941,7 +922,7 @@ void Matrix_norm(void* target, const Matrix* M, NormType nt)
         case FROBENIUS:
         {
             _frobenius_helpers[M->dt](target, M);
-            break;
+            return;
         }
         case SPECTRAL:
         {
