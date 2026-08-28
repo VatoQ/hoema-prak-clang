@@ -231,11 +231,11 @@ static void _set_uniform_int(void* values,
                              double min,
                              double max)
 {
+    ACCESS_VOID(int_t, values_t, values);
     for (size_t i = 0; i < size; i++)
     {
-        void* ptr = values + i;
-        long* val = (long*)ptr;
-        *val      = (long)PRNG_State_random_double_range(prng, min, max);
+        int_t a     = PRNG_State_random_double_range(prng, min, max);
+        values_t[i] = a;
     }
 }
 
@@ -245,11 +245,11 @@ static void _set_uniform_real(void* values,
                               double min,
                               double max)
 {
+    ACCESS_VOID(real_t, values_t, values);
     for (size_t i = 0; i < size; i++)
     {
-        void* ptr   = values + i;
-        double* val = (double*)ptr;
-        *val        = (double)PRNG_State_random_double_range(prng, min, max);
+        real_t a    = PRNG_State_random_double_range(prng, min, max);
+        values_t[i] = a;
     }
 }
 
@@ -259,13 +259,12 @@ static void _set_uniform_compl(void* values,
                                double min,
                                double max)
 {
+    ACCESS_VOID(complex_t, values_t, values);
     for (size_t i = 0; i < size; i++)
     {
-        void* ptr           = values + i;
-        complex double* val = (complex double*)ptr;
-        double a            = PRNG_State_random_double_range(prng, min, max);
-        double b            = PRNG_State_random_double_range(prng, min, max);
-        *val                = a + b * I;
+        double a    = PRNG_State_random_double_range(prng, min, max);
+        double b    = PRNG_State_random_double_range(prng, min, max);
+        values_t[i] = a + b * I;
     }
 }
 
@@ -345,49 +344,11 @@ Matrix Matrix_new_random_symmetric(const size_t n, DataType dt)
     return M;
 }
 
-static void _zero_init_int(void* values, const size_t size)
-{
-    for (size_t i = 0; i < size; i++)
-    {
-        void* ptr = values + i;
-        long* val = (long*)val;
-        *val      = 0;
-    }
-}
-
-static void _zero_init_real(void* values, const size_t size)
-{
-    for (size_t i = 0; i < size; i++)
-    {
-        void* ptr   = values + i;
-        double* val = (double*)val;
-        *val        = 0;
-    }
-}
-
-static void _zero_init_complex(void* values, const size_t size)
-{
-    for (size_t i = 0; i < size; i++)
-    {
-        void* ptr           = values + i;
-        complex double* val = (complex double*)val;
-        *val                = 0;
-    }
-}
-
-static void (*_zero_initializers[TYPE_COUNT])(void* values,
-                                              const size_t size) = {
-    [Int]     = _zero_init_int,
-    [Real]    = _zero_init_real,
-    [Complex] = _zero_init_complex
-};
-
 Matrix Matrix_zeros_like(const Matrix* M, DataType dt)
 {
     Matrix new = Matrix_like(M);
     memset(M->values, 0, M->m * M->n * elem_size(dt));
 
-    // _zero_initializers[dt](new.values, M->m * M->n);
     return new;
 }
 
@@ -487,26 +448,20 @@ void Matrix_copy(Matrix* target, const Matrix* M)
 
 static void _set_at_int(void* M_values, const size_t index, const void* value)
 {
-    long* v      = (long*)value;
-    void* ptr    = M_values + index;
-    long* target = (long*)ptr;
-    *target      = *v;
+    ACCESS_VOID(int_t, M_values_t, M_values);
+    M_values_t[index] = *(int_t*)value;
 }
 
 static void _set_at_real(void* M_values, const size_t index, const void* value)
 {
-    double* v      = (double*)value;
-    void* ptr      = M_values + index;
-    double* target = (double*)ptr;
-    *target        = *v;
+    ACCESS_VOID(real_t, M_values_t, M_values);
+    M_values_t[index] = *(real_t*)value;
 }
 
 static void _set_at_cmpl(void* M_values, const size_t index, const void* value)
 {
-    complex double* v      = (complex double*)value;
-    void* ptr              = M_values + index;
-    complex double* target = (complex double*)ptr;
-    *target                = *v;
+    ACCESS_VOID(complex_t, M_values_t, M_values);
+    M_values_t[index] = *(complex_t*)value;
 }
 
 void (*_set_at_helpers[TYPE_COUNT])(void* M_values,
@@ -527,27 +482,25 @@ int Matrix_set_at(Matrix* M, const size_t m, const size_t n, const void* value)
     const size_t index = m * M->n + n;
     _set_at_helpers[M->dt](M->values, index, value);
 
-    // TODO: M->values[index]   = value;
-
     return MATRIX_SUCCESS;
 }
 
 static void _get_at_int(const void* M_values, const size_t index, void* target)
 {
-    ACCESS_VOID(int_t, M_value, M_values + index);
-    ASSIGN_UNTYPED(int_t, target, M_value);
+    ACCESS_VOID(int_t, M_values_t, M_values);
+    *(int_t*)target = M_values_t[index];
 }
 
 static void _get_at_real(const void* M_values, const size_t index, void* target)
 {
-    ACCESS_VOID(real_t, M_value, M_values + index);
-    ASSIGN_UNTYPED(real_t, target, M_value);
+    ACCESS_VOID(real_t, M_values_t, M_values);
+    *(real_t*)target = M_values_t[index];
 }
 
 static void _get_at_cmpl(const void* M_values, const size_t index, void* target)
 {
-    ACCESS_VOID(complex_t, M_value, M_values + index);
-    ASSIGN_UNTYPED(complex_t, target, M_value);
+    ACCESS_VOID(complex_t, M_values_t, M_values);
+    *(complex_t*)target = M_values_t[index];
 }
 
 static void (*_get_at_helpers[TYPE_COUNT])(const void* M_values,
@@ -574,13 +527,11 @@ int Matrix_get_at(void* target, const Matrix* M, const size_t m, const size_t n)
 
 static bool _all_close_int(const Matrix* A, const Matrix* B)
 {
+    ACCESS_VOID(int_t, A_values, A->values);
+    ACCESS_VOID(int_t, B_values, B->values);
     for (size_t i = 0; i < A->m * A->n; i++)
     {
-        void* ptr1  = A->values + i;
-        void* ptr2  = B->values + i;
-        long* ptr1i = (long*)ptr1;
-        long* ptr2i = (long*)ptr2;
-        if (*ptr1i == *ptr2i)
+        if (A_values[i] != B_values[i])
         {
             return false;
         }
@@ -592,11 +543,9 @@ static bool _all_close_real(const Matrix* A, const Matrix* B)
 {
     for (size_t i = 0; i < A->m * A->n; i++)
     {
-        void* ptr1    = A->values + i;
-        void* ptr2    = B->values + i;
-        double* ptr1d = (double*)ptr1;
-        double* ptr2d = (double*)ptr2;
-        if (fabs(*ptr1d - *ptr2d) > EPS)
+        ACCESS_VOID(real_t, A_values, A->values);
+        ACCESS_VOID(real_t, B_values, B->values);
+        if (fabs(A_values[i] - B_values[i]) > EPS)
         {
             return false;
         }
@@ -608,11 +557,9 @@ static bool _all_close_cmpl(const Matrix* A, const Matrix* B)
 {
     for (size_t i = 0; i < A->m * A->n; i++)
     {
-        void* ptr1            = A->values + i;
-        void* ptr2            = B->values + i;
-        complex double* ptr1d = (complex double*)ptr1;
-        complex double* ptr2d = (complex double*)ptr2;
-        if (cabs(*ptr1d - *ptr2d) > EPS)
+        ACCESS_VOID(complex_t, A_values, A->values);
+        ACCESS_VOID(complex_t, B_values, B->values);
+        if (cabs(A_values[i] - B_values[i]) > EPS)
         {
             return false;
         }
@@ -648,50 +595,51 @@ void Matrix_free(Matrix* M)
 
 static void _max_int(void* target, const Matrix* M)
 {
-    long max = -LONG_MAX;
+    int_t max;
+    get_limit(&max, Int, Min);
+    ACCESS_VOID(int_t, M_values, M->values);
+
     for (int i = 0; i < M->m * M->n; i++)
     {
-        void* ptr = M->values + i;
-        long* val = (long*)ptr;
-        if (*val > max)
+        const int_t a = M_values[i];
+        if (a > max)
         {
-            max = *val;
+            max = a;
         }
     }
-    long* target_val = (long*)target;
-    *target_val      = max;
+    ASSIGN_UNTYPED(int_t, target, &max);
 }
 
 static void _max_real(void* target, const Matrix* M)
 {
-    double max = -INFINITY;
+    real_t max;
+    get_limit(&max, Real, Min);
+    ACCESS_VOID(real_t, M_values, M->values);
     for (int i = 0; i < M->m * M->n; i++)
     {
-        void* ptr   = M->values + i;
-        double* val = (double*)ptr;
-        if (*val > max)
+        const real_t a = M_values[i];
+        if (a > max)
         {
-            max = *val;
+            max = a;
         }
     }
-    double* target_val = (double*)target;
-    *target_val        = max;
+    ASSIGN_UNTYPED(real_t, target, &max);
 }
 
 static void _max_cmpl(void* target, const Matrix* M)
 {
-    double max = -INFINITY;
+    real_t max;
+    get_limit(&max, Real, Min);
+    ACCESS_VOID(real_t, M_values, M->values);
     for (int i = 0; i < M->m * M->n; i++)
     {
-        void* ptr           = M->values + i;
-        complex double* val = (complex double*)ptr;
-        if (cabs(*val) > max)
+        const complex_t a = M_values[i];
+        if (cabs(a) > max)
         {
-            max = *val;
+            max = cabs(a);
         }
     }
-    double* target_val = (double*)target;
-    *target_val        = max;
+    ASSIGN_UNTYPED(real_t, target, &max);
 }
 
 static void (*_max_helpers[TYPE_COUNT])(void* target, const Matrix* M) = {
