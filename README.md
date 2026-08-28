@@ -5,6 +5,7 @@ matrix, vector and numerical routines written in plain ISO C. Over time
 I added tooling, tests and a small Python API and the repository's
 purpose shifted from being a collection of university assignment
 solutions to a general-purpose learning and experimentation workspace.
+Feel free to make a PR if you have suggestions for improvement.
 
 What this repository is now
 
