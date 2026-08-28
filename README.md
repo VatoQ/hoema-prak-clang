@@ -1,160 +1,72 @@
-# Matrix, Vector and Numerical Mathematics Library in Pure C
+# Numerical Math Library — C core, plus a small Python API
 
-This repository contains a lightweight, self‑contained implementation
-of matrix and vector operations written entirely in **ISO C**, 
-without C++ classes, templates, operator overloading, or other 
-modern abstractions. The project began as a personal exploration 
-while working through exercises from the HöMa 2 Praktikum at 
-FH Aachen, but it quickly grew into a standalone numerical 
-toolkit with a clear design philosophy:
+This repository began as a compact, self-contained implementation of
+matrix, vector and numerical routines written in plain ISO C. Over time
+I added tooling, tests and a small Python API and the repository's
+purpose shifted from being a collection of university assignment
+solutions to a general-purpose learning and experimentation workspace.
 
-**Simple, explicit, predictable code — built from first principles.**
+What this repository is now
 
-## Planned Features
-- [x] matrix multiplication (including Jordan product)
-- [x] matrix inversion for arbitrary n×n matrices
-- [x] a minimal logging system
-- [x] Pseudo random number generation.
-- [x] a small unit‑testing setup using Acutest
-- [x] Fourier transformations (DFT, FFT)
-- [ ] Differential equations
-- [ ] Stochastics (Monte Carlo simulations, random sampling)
+- Core numerical routines and performance-sensitive code remain
+  implemented in C.
+- A growing Python API (and related scripts) provide a higher-level
+  interface and make experimenting with the algorithms easier.
+- The original HöMa Praktikum exercises are preserved for reference,
+  but they are no longer the main focus of the project.
 
+Design goals
 
+- Simple, explicit, predictable implementation in C for the core
+  algorithms.
+- Easy-to-use Python bindings and helper tools for prototyping and
+  experimentation.
+- Clear tests and small, readable examples rather than large framework
+  dependencies.
 
+Quick status / roadmap
 
-# Build instructions
+- C: matrix multiplication, inversion, basic linear algebra — maintained
+  and exercised by unit tests.
+- Python API: initial bindings and convenience wrappers (work in
+  progress).
+- Tests: small unit tests are present (Acutest) and are runnable via the
+  Makefile.
+- Planned: improve packaging for the Python API, add more examples,
+  and expand numerical methods (ODE solvers, stochastic methods).
 
-This project has been built on two systems:
-- an HP ProBook running Manjaro Linux with an *AMD Ryzen 5 4500U*
-- a personal workstation running CachyOS Linux with an *AMD Ryzen 5 5600X*
+Building and running
 
-The instructions below apply to any comparable setup. Adjust paths,
-compiler flags or shell commands as needed for your own environment.
+Most of the performance-sensitive code is in C and can be built using
+your system compiler (GCC or Clang) and the provided Makefile. Python
+components require a Python 3 interpreter; see the relevant Python
+scripts for any additional dependency notes.
 
-## Requirements
-- GCC or Clang
-- POSIX-compatible shell (Fish, Bash, Zsh, etc.)
-- Standard math library (`libm`)
+Minimal C build example:
 
-## Building the project
-A minimal build can be done directly from the command line.
-
-Depending on the features used it may look like the following:
-
-```fish
     gcc -O3 -march=native -ffast-math \
-    src/main.c src/vector.c src/matrix.c src/logging.c \
-    -o main -lm
-```
+        src/main.c src/vector.c src/matrix.c src/logging.c \
+        -o main -lm
 
-Keep in mind that every feature uses the logging feature, 
-so every build must include `logging.c`
+Use the Makefile to build the main executable or the tests:
 
-## Using the provided `makefile`
+    make        # build main (default target)
+    make test_matrix   # build a test executable
 
-Build `main.c` from the commandline using the proided `makefile`:
-```fish
-make
-```
+If you've been working with the repository previously: note that some
+scripts or helper files for the Python API may be present in the repo
+root or a `python/` subdirectory. Check the tree for `py`/`python`/
+`bindings` folders to find the latest Python code.
 
-Build any unit test by passing the name of the test file as an argument:
+Contributing and notes
 
-```fish
-make test_matrix
-```
+This is my personal project and a place for learning. Contributions are
+welcome — please open issues or pull requests for fixes, improvements or
+suggestions. If you use code in academic work, treat this repository as
+reference material rather than a drop-in solution for course
+assignments.
 
-This will make an executable called `test_matrix` in the project root.
+License
 
-## Using provided build scripts
-
-There are two shell scripts provided that
-1. Build source files via makefile.
-2. Set environment variables.
-3. Launch the appropriate executable.
-4. Are written in fish, so make sure it is installed and visible.
-
-### `run_main.sh`
-
-- Build all sources in `src/*` and `src/main.c` into the executable `main`. All compiler flags are specified by `makefile`.
-- Set OpenMP environment flags.
-- Execute `.main`.
-
-
-### `run_tests.sh`
-- Build all non main sources in `src/*` and all tests in `tests/*` into executables `test_*`.
-- Iterate over all `test_*` files and execute.
-- Give additional output if one or zero tests failed.
-
-### `run_bench.sh`
-
-- Build all non main sources in `src/*` and all benchmarks in `benchmarks/*` into executables `test_*`.
-- Iterate over all `bench_*` files and execute.
-- Give additional output.
-
-
-
-# License & Usage
-
-
-This project contains my personal C implementation of matrix, vector, and numerical routines originally inspired by exercises from the HöMa 2 Praktikum at FH Aachen.
-
-I am publishing this code freely so that others can learn from it, study it, or use parts of it in their own projects.
-
-**You may use, modify, and redistribute this code for any purpose — academic, personal, or commercial — as long as you include proper attribution.**
-
-I do **not** accept responsibility for academic misuse: this repository is *not* a drop‑in solution for the original Praktikum, and I strongly encourage students to complete their own assignments.
-
-The full license text is provided below.
-
-
-
-## MIT License
-
-# License & Usage
-
-
-This project contains my personal C implementation of matrix, vector, and numerical routines originally inspired by exercises from the HöMa 2 Praktikum at FH Aachen.
-
-I am publishing this code freely so that others can learn from it, study it, or use parts of it in their own projects.
-
-**You may use, modify, and redistribute this code for any purpose — academic, personal, or commercial — as long as you include proper attribution.**
-
-I do **not** accept responsibility for academic misuse: this repository is *not* a drop‑in solution for the original Praktikum, and I strongly encourage students to complete their own assignments.
-
-The full license text is provided below.
-
-
-
-## MIT License
-
-Copyright &copy; 2026 VatoQ
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the “Software”), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
-
-
-## Third‑Party Components
-
-This project includes the header-only testing framework Acutest  
-(&copy; 2013–2021, Acutest contributors), distributed under the MIT License.
-The original license text is preserved in acutest.h.
-
-
-
+This project is distributed under the MIT License — see the full text
+below.
