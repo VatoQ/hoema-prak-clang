@@ -1205,7 +1205,16 @@ int Matrix_add(Matrix* target, const Matrix* M)
         Log_log("Index out of range in Matrix_add()!", LOG_RT_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
-    DataType dt = (target->dt > M->dt) ? target->dt : M->dt;
+    if (target->dt != M->dt)
+    {
+        Matrix* pm = NULL;
+        Matrix_copy(pm, M);
+        target->dt = -1; // make sure target gets M's datatype
+        _prepare_datatype(target, pm);
+        Matrix_free(pm);
+    }
+
+    DataType dt = M->dt;
     _add_sub_units[dt](Add, target, M);
     return MATRIX_SUCCESS;
 }
@@ -1217,12 +1226,20 @@ int Matrix_sub(Matrix* target, const Matrix* M)
         Log_log("Index out of range in Matrix_sub()!", LOG_RT_ERROR);
         return MATRIX_DIMENSION_ERROR;
     }
+    if (target->dt != M->dt)
+    {
+        Matrix* pm = NULL;
+        Matrix_copy(pm, M);
+        target->dt = -1; // make sure target gets M's datatype
+        _prepare_datatype(target, pm);
+        Matrix_free(pm);
+    }
     DataType dt = (target->dt > M->dt) ? target->dt : M->dt;
     _add_sub_units[dt](Sub, target, M);
     return MATRIX_SUCCESS;
 }
 
-static void _scale_int(Matrix* target, const complex double lambda)
+static void _scale_int(Matrix* target, const complex real_t lambda)
 {
     const size_t N        = target->m * target->n;
     const size_t lambda_w = round(creal(lambda));
@@ -1233,7 +1250,7 @@ static void _scale_int(Matrix* target, const complex double lambda)
     }
 }
 
-static void _scale_real(Matrix* target, const complex double lambda)
+static void _scale_real(Matrix* target, const complex real_t lambda)
 {
     const size_t N        = target->m * target->n;
     const double lambda_w = creal(lambda);
@@ -1244,7 +1261,7 @@ static void _scale_real(Matrix* target, const complex double lambda)
     }
 }
 
-static void _scale_cmpl(Matrix* target, const complex double lambda)
+static void _scale_cmpl(Matrix* target, const complex real_t lambda)
 {
     const size_t N = target->m * target->n;
     ACCESS_VOID(real_t, target_values, target->values);
@@ -1255,13 +1272,13 @@ static void _scale_cmpl(Matrix* target, const complex double lambda)
 }
 
 static void (*_scale_units[TYPE_COUNT])(Matrix* target,
-                                        const complex double lambda) = {
+                                        const complex real_t lambda) = {
     [Int]     = _scale_int,
     [Real]    = _scale_real,
     [Complex] = _scale_cmpl,
 };
 
-void Matrix_scale(Matrix* target, const complex double lambda)
+void Matrix_scale(Matrix* target, const complex real_t lambda)
 {
     const size_t N = target->m * target->n;
     _scale_units[target->dt](target, lambda);
@@ -3068,14 +3085,20 @@ void Matrix_Matrix_dot_active(Matrix* H,
                               size_t active)
 {
     size_t n   = H->n;
-    Matrix *p1 = R, *p2 = Q;
+    Matrix *p1 = NULL, *p2 = NULL;
     if (p1->dt != p2->dt)
     {
         Matrix_copy(p1, R);
         Matrix_copy(p2, Q);
         _prepare_datatype(p1, p2);
+        _dot_active_units[p1->dt](H, p1, p2, active, n);
+        Matrix_free(p1);
+        Matrix_free(p2);
     }
-    _dot_active_units[p1->dt](H, p1, p2, active, n);
+    else
+    {
+        _dot_active_units[R->dt](H, R, Q, active, n);
+    }
 }
 
 static void _inner_dot_int(void* target, const Matrix* A, const Matrix* B)
@@ -3127,15 +3150,21 @@ int Matrix_inner_dot(void* target, const Matrix* A, const Matrix* B)
     {
         return MATRIX_DIMENSION_ERROR;
     }
-    Matrix *p1 = A, *p2 = B;
-    if (p1->dt != p2->dt)
+    Matrix *p1 = NULL, *p2 = NULL;
+    if (A->dt != B->dt)
     {
         Matrix_copy(p1, A);
         Matrix_copy(p2, B);
         _prepare_datatype(p1, p2);
+        _inner_dot_units[p1->dt](target, p1, p2);
+        Matrix_free(p1);
+        Matrix_free(p2);
     }
-    DataType dt = p1->dt;
-    _inner_dot_units[dt](target, p1, p2);
+    else
+    {
+        DataType dt = A->dt;
+        _inner_dot_units[dt](target, A, B);
+    }
 
     return MATRIX_SUCCESS;
 }
@@ -3196,16 +3225,23 @@ int Matrix_Hadamard_dot(Matrix* target, const Matrix* A, const Matrix* B)
     {
         return MATRIX_DIMENSION_ERROR;
     }
-    Matrix *p1 = A, *p2 = B;
-    if (p1->dt != p2->dt)
+    Matrix *p1 = NULL, *p2 = NULL;
+    if (A->dt != B->dt)
     {
         Matrix_copy(p1, A);
         Matrix_copy(p2, B);
         _prepare_datatype(p1, p2);
+        Matrix_prepare_target(target, A->m, A->n, p1->dt);
+        _hadamard_dot_units[p1->dt](target, p1, p2);
+        Matrix_free(p1);
+        Matrix_free(p2);
     }
-    DataType dt = p1->dt;
+    else
+    {
+        DataType dt = A->dt;
+        Matrix_prepare_target(target, A->m, A->n, dt);
+        _hadamard_dot_units[dt](target, A, B);
+    }
 
-    Matrix_prepare_target(target, A->m, A->n, dt);
-    _hadamard_dot_units[dt](target, p1, p2);
     return MATRIX_SUCCESS;
 }
