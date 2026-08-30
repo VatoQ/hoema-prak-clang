@@ -54,10 +54,6 @@ Use the Makefile to build the main executable or the tests:
     make        # build main (default target)
     make test_matrix   # build a test executable
 
-If you've been working with the repository previously: note that some
-scripts or helper files for the Python API may be present in the repo
-root or a `python/` subdirectory. Check the tree for `py`/`python`/
-`bindings` folders to find the latest Python code.
 
 Contributing and notes
 
