@@ -72,6 +72,8 @@
 #define complex_t complex double
 #endif
 
+#define PI 3.14159265358979323846
+
 typedef enum
 {
     CONFIG_SUCCESS,
