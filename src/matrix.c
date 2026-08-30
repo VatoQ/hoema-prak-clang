@@ -25,6 +25,164 @@ int Matrix_is_empty(const Matrix* M)
     return ((M->values == NULL) || (M->m == 0 && M->n == 0));
 }
 
+static void _real_to_int(Matrix* target)
+{
+    ACCESS_VOID(real_t, target_values, target->values);
+    Matrix new = Matrix_new(target->m, target->n, Int);
+    ACCESS_VOID(int_t, new_values, new.values);
+    for (size_t i = 0; i < target->m * target->n; i++)
+    {
+        new_values[i] = (int_t)target_values[i];
+    }
+
+    Matrix_free(target);
+    target->values = new.values;
+    target->dt     = new.dt;
+    target->m      = new.m;
+    target->n      = new.n;
+}
+
+static void _complex_to_int(Matrix* target)
+{
+    ACCESS_VOID(complex_t, target_values, target->values);
+    Matrix new = Matrix_new(target->m, target->n, Int);
+    ACCESS_VOID(int_t, new_values, new.values);
+    for (size_t i = 0; i < target->m * target->n; i++)
+    {
+        new_values[i] = (int_t)creal(target_values[i]);
+    }
+
+    Matrix_free(target);
+    target->values = new.values;
+    target->dt     = new.dt;
+    target->m      = new.m;
+    target->n      = new.n;
+}
+
+static void (*_to_int_workers[TYPE_COUNT])(Matrix* target) = {
+    [Real]    = _real_to_int,
+    [Complex] = _complex_to_int,
+};
+
+static void _int_to_real(Matrix* target)
+{
+    ACCESS_VOID(int_t, target_values, target->values);
+    Matrix new = Matrix_new(target->m, target->n, Real);
+    ACCESS_VOID(real_t, new_values, new.values);
+    for (size_t i = 0; i < target->m * target->n; i++)
+    {
+        new_values[i] = (real_t)target_values[i];
+    }
+
+    Matrix_free(target);
+    target->values = new.values;
+    target->dt     = new.dt;
+    target->m      = new.m;
+    target->n      = new.n;
+}
+
+static void _complex_to_real(Matrix* target)
+{
+    ACCESS_VOID(complex_t, target_values, target->values);
+    Matrix new = Matrix_new(target->m, target->n, Real);
+    ACCESS_VOID(real_t, new_values, new.values);
+    for (size_t i = 0; i < target->m * target->n; i++)
+    {
+        new_values[i] = (real_t)creal(target_values[i]);
+    }
+
+    Matrix_free(target);
+    target->values = new.values;
+    target->dt     = new.dt;
+    target->m      = new.m;
+    target->n      = new.n;
+}
+
+static void (*_to_real_workers[TYPE_COUNT])(Matrix* target) = {
+    [Int]     = _int_to_real,
+    [Complex] = _complex_to_real,
+};
+
+static void _int_to_complex(Matrix* target)
+{
+    ACCESS_VOID(int_t, target_values, target->values);
+    Matrix new = Matrix_new(target->m, target->n, Complex);
+    ACCESS_VOID(complex_t, new_values, new.values);
+    for (size_t i = 0; i < target->m * target->n; i++)
+    {
+        new_values[i] = (complex_t)target_values[i];
+    }
+
+    Matrix_free(target);
+    target->values = new.values;
+    target->dt     = new.dt;
+    target->m      = new.m;
+    target->n      = new.n;
+}
+
+static void _real_to_complex(Matrix* target)
+{
+    ACCESS_VOID(real_t, target_values, target->values);
+    Matrix new = Matrix_new(target->m, target->n, Complex);
+    ACCESS_VOID(complex_t, new_values, new.values);
+    for (size_t i = 0; i < target->m * target->n; i++)
+    {
+        new_values[i] = (complex_t)target_values[i];
+    }
+
+    Matrix_free(target);
+    target->values = new.values;
+    target->dt     = new.dt;
+    target->m      = new.m;
+    target->n      = new.n;
+}
+
+static void (*_to_complex_workers[TYPE_COUNT])(Matrix* target) = {
+    [Int]  = _int_to_complex,
+    [Real] = _real_to_complex,
+};
+
+static MatrixStatus _prepare_datatype(Matrix* A, Matrix* B)
+{
+    if (A->dt == B->dt)
+    {
+        return MATRIX_SUCCESS;
+    }
+
+    Matrix *p1 = A, *p2 = B;
+
+    if (A->dt > B->dt)
+    {
+        p1 = B;
+        p2 = A;
+    }
+
+    switch (B->dt)
+    {
+        case Int:
+        {
+            _to_int_workers[A->dt](p1);
+            return MATRIX_SUCCESS;
+        }
+        case Real:
+        {
+            _to_real_workers[A->dt](p1);
+            return MATRIX_SUCCESS;
+        }
+        case Complex:
+        {
+            _to_complex_workers[A->dt](p1);
+            return MATRIX_SUCCESS;
+        }
+        default:
+        {
+            Log_log("Unknown data type encountered in _prepare_datatype()",
+                    LOG_RT_ERROR);
+            return MATRIX_BASIC_ERROR;
+        }
+    }
+}
+
 static void Matrix_prepare_target(Matrix* target,
                                   const size_t m,
                                   const size_t n,
@@ -2453,6 +2611,7 @@ int _outer_parallel(Matrix* target, const Vector* a, const Vector* b)
 
 int Matrix_Vector_outer(Matrix* target, const Vector* a, const Vector* b)
 {
+    // TODO: Vector prepare datatype
     Matrix_prepare_target(target, a->dim, b->dim, MAX(a->dt, b->dt));
     if (a->dim * b->dim > 200 * 200)
     {
@@ -2908,8 +3067,15 @@ void Matrix_Matrix_dot_active(Matrix* H,
                               const Matrix* Q,
                               size_t active)
 {
-    size_t n = H->n;
-    _dot_active_units[Q->dt](H, R, Q, active, n);
+    size_t n   = H->n;
+    Matrix *p1 = R, *p2 = Q;
+    if (p1->dt != p2->dt)
+    {
+        Matrix_copy(p1, R);
+        Matrix_copy(p2, Q);
+        _prepare_datatype(p1, p2);
+    }
+    _dot_active_units[p1->dt](H, p1, p2, active, n);
 }
 
 static void _inner_dot_int(void* target, const Matrix* A, const Matrix* B)
@@ -2961,8 +3127,15 @@ int Matrix_inner_dot(void* target, const Matrix* A, const Matrix* B)
     {
         return MATRIX_DIMENSION_ERROR;
     }
-    DataType dt = MAX(A->dt, B->dt);
-    _inner_dot_units[dt](target, A, B);
+    Matrix *p1 = A, *p2 = B;
+    if (p1->dt != p2->dt)
+    {
+        Matrix_copy(p1, A);
+        Matrix_copy(p2, B);
+        _prepare_datatype(p1, p2);
+    }
+    DataType dt = p1->dt;
+    _inner_dot_units[dt](target, p1, p2);
 
     return MATRIX_SUCCESS;
 }
@@ -3023,8 +3196,16 @@ int Matrix_Hadamard_dot(Matrix* target, const Matrix* A, const Matrix* B)
     {
         return MATRIX_DIMENSION_ERROR;
     }
-    DataType dt = MAX(A->dt, B->dt);
+    Matrix *p1 = A, *p2 = B;
+    if (p1->dt != p2->dt)
+    {
+        Matrix_copy(p1, A);
+        Matrix_copy(p2, B);
+        _prepare_datatype(p1, p2);
+    }
+    DataType dt = p1->dt;
+
     Matrix_prepare_target(target, A->m, A->n, dt);
-    _hadamard_dot_units[dt](target, A, B);
+    _hadamard_dot_units[dt](target, p1, p2);
     return MATRIX_SUCCESS;
 }
