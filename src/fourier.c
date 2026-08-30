@@ -9,8 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define PI 3.14159265358979323846
-
 /**
  * @brief In place implementation of FFT
  *
