@@ -1,4 +1,4 @@
-// #define DEBUG
+#define DEBUG
 #include "../include/config.h"
 #include "../include/real_functions.h"
 #include "acutest.h"
@@ -18,7 +18,7 @@ void test_rfn_cos(void)
     {
         real_t c1 = rfn_cos(x);
         real_t c2 = cos(x);
-        DEBUG_PRINT("\nc1 = %f, c2 = %f", c1, c2);
+        DEBUG_PRINT("\ncos(%f) = (a) %f, (e)  %f", x, c1, c2);
 
         x += dx;
 
@@ -32,7 +32,7 @@ void test_rfn_cotan(void)
     {
         N = 50
     };
-    real_t dx = 2 * 2 * PI / N;
+    real_t dx = 2 * PI / N;
     real_t x  = 0;
 
     for (size_t i = 0; i < N - 2; i++)
@@ -41,7 +41,7 @@ void test_rfn_cotan(void)
         real_t c2 = cos(x) / sin(x);
         if (c1 < 1e14 && c2 < 1e14)
         {
-            DEBUG_PRINT("\nc1 = %f, c2 = %f", c1, c2);
+            DEBUG_PRINT("\ncotan(%f) = (e) %f, (a) %f", x, c1, c2);
 
             TEST_CHECK(fabs(c1 - c2) < EPS);
         }
@@ -144,11 +144,34 @@ void test_rfn_sin(void)
     {
         real_t c1 = rfn_sin(x);
         real_t c2 = sin(x);
-        DEBUG_PRINT("\nc1 = %f, c2 = %f", c1, c2);
+        DEBUG_PRINT("\nsin(%f) = (a) %f, (e) = %f", x, c1, c2);
 
         x += dx;
 
         TEST_CHECK(fabs(c1 - c2) < EPS);
+    }
+}
+
+void test_rfn_tan(void)
+{
+    enum
+    {
+        N = 50
+    };
+    real_t dx = 2 * PI / N;
+    real_t x  = 0;
+
+    for (size_t i = 0; i < N - 2; i++)
+    {
+        real_t c1 = rfn_tan(x);
+        real_t c2 = tan(x);
+        if (c1 < 1e14 && c2 < 1e14)
+        {
+            DEBUG_PRINT("\ntan(%f) = (a) %f, (e) = %f", x, c1, c2);
+
+            TEST_CHECK(fabs(c1 - c2) < EPS);
+        }
+        x += dx;
     }
 }
 
@@ -159,5 +182,7 @@ TEST_LIST = {
     { "test_rfn_mod", test_rfn_mod },
     { "test_rfn_sin", test_rfn_sin },
     { "test_rfn_pow_i", test_rfn_pow_i },
+    { "test_rfn_tan", test_rfn_tan },
+    //
     { NULL, NULL },
 };
