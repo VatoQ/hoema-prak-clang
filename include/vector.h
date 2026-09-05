@@ -18,7 +18,6 @@ typedef enum
 #include "config.h"
 #include <stddef.h>
 
-#define EPS (sizeof(real_t) < 8 ? 1e-4 : 1e-8)
 /**
  * Type for mathematical vector operations.
  *
@@ -87,7 +86,8 @@ Vector Vector_new_random_normal(const size_t dim,
                                 const DataType dt);
 
 /**
- * @brief Constructs a new vector with random values from a uniform distribution.
+ * @brief Constructs a new vector with random values from a uniform
+ * distribution.
  *
  * @param dim Dimension of the new vector.
  * @param min Minimum value of the uniform distribution.
@@ -144,7 +144,8 @@ void Vector_copy(Vector* target, const Vector* v);
  *
  * @param u First vector to compare.
  * @param v Second vector to compare.
- * @return 1 if all corresponding elements are close within tolerance, 0 otherwise.
+ * @return 1 if all corresponding elements are close within tolerance, 0
+ * otherwise.
  */
 int Vector_all_close(const Vector* u, const Vector* v);
 
@@ -154,7 +155,8 @@ int Vector_all_close(const Vector* u, const Vector* v);
  * @param target Value is stored here.
  * @param v Vector to be accessed.
  * @param index Index of the data.
- * @return `VECTOR_DIMENSION_ERROR` if index is out of bounds, `VECTOR_SUCCESS` otherwise.
+ * @return `VECTOR_DIMENSION_ERROR` if index is out of bounds, `VECTOR_SUCCESS`
+ * otherwise.
  */
 int Vector_at(void* target, const Vector* v, const size_t index);
 /**
@@ -173,7 +175,8 @@ int Vector_get_at(void* target, const Vector* v, const size_t index);
  * @param v Vector to be modified.
  * @param index Index of the element to set.
  * @param val Pointer to the new value.
- * @return `VECTOR_DIMENSION_ERROR` if index is out of bounds, `VECTOR_SUCCESS` otherwise.
+ * @return `VECTOR_DIMENSION_ERROR` if index is out of bounds, `VECTOR_SUCCESS`
+ * otherwise.
  */
 int Vector_set_item(Vector* v, const size_t index, const void* val);
 /**

@@ -217,7 +217,7 @@ int Matrix_sub(Matrix* target, const Matrix* M);
  * @param `target` Matrix to be scaled.
  * @param `lambda` Real scalar.
  */
-void Matrix_scale(Matrix* target, const complex real_t lambda);
+void Matrix_scale(Matrix* target, const complex_t lambda);
 /**
  * @brief Invert a matrix if it is invertable.
  *
