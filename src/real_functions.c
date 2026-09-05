@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-static size_t MAX_STEP = 7;
+static size_t MAX_STEP = 8;
 
 real_t rfn_abs(real_t x)
 {
@@ -107,7 +107,7 @@ real_t rfn_pow_i(real_t x, int_t n)
 {
     if (n < 0 && rfn_abs(x) < EPS) // prevent division by zero in the n < 0 case
     {
-        return 0;
+        return ieee_nan();
     }
     if (n < 0)
     {
