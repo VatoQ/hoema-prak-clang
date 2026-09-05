@@ -1,5 +1,5 @@
-#ifndef DGL_H
-#define DGL_H
+#ifndef __DGL_H__
+#define __DGL_H__
 
 #define DGL_SYSTEM 1
 #define DGL_NTH_ORDER 2
@@ -31,4 +31,4 @@ typedef struct
 DGL DGL_new(void* function, int type);
 
 void DGL_Result_free(DGL_Result* dgl_result);
-#endif // DGL_H
+#endif // __DGL_H__

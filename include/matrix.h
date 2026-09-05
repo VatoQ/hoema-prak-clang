@@ -1,5 +1,5 @@
-#ifndef MATRIX_H
-#define MATRIX_H
+#ifndef __MATRIX_H__
+#define __MATRIX_H__
 
 ///////////////////////////////////////////////////////////
 //~- ------------------------------------------------- -~//
@@ -353,4 +353,4 @@ int Matrix_Hadamard_dot(Matrix* target, const Matrix* A, const Matrix* B);
 //                              const Vector** vs,
 //                              const size_t batch_size);
 
-#endif // MATRIX_H
+#endif // __MATRIX_H__

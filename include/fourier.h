@@ -1,5 +1,5 @@
-#ifndef FOURIER_H
-#define FOURIER_H
+#ifndef __FOURIER_H__
+#define __FOURIER_H__
 
 #include <complex.h>
 #include <stdbool.h>
@@ -50,4 +50,4 @@ DataPoints DataPoints_new(const size_t size);
  */
 int DataPoints_free(DataPoints* data);
 
-#endif // FOURIER_H
+#endif // __FOURIER_H__

@@ -1,5 +1,5 @@
-#ifndef RANDOM_H
-#define RANDOM_H
+#ifndef __PRNG_H__
+#define __PRNG_H__
 
 #include <stddef.h>
 #include <sys/types.h>
@@ -85,4 +85,4 @@ double PRNG_State_normal(PRNG_State* prng,
  */
 double PRNG_State_exponential(PRNG_State* prng, const double lambda);
 
-#endif // RANDOM_H
+#endif // __PRNG_H__

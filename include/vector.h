@@ -1,5 +1,5 @@
-#ifndef VECTOR_H
-#define VECTOR_H
+#ifndef __VECTOR_H__
+#define __VECTOR_H__
 
 #define ZERO_INIT 0.0
 #define GRAD_EPS 10e-5
@@ -345,4 +345,4 @@ int Vector_dot(void* target, const Vector* u, const Vector* v);
 //                              double (*f)(const Vector*),
 //                              double stepsize);
 
-#endif // VECTOR_H
+#endif // __VECTOR_H__
