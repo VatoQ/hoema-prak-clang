@@ -55,7 +55,7 @@ real_t rfn_cotan(real_t x)
 
 real_t rfn_exp(real_t x)
 {
-    real_t sum;
+    real_t sum = 0.0;
 
     for (size_t k = 0; k < 20; k++)
     {
