@@ -14,7 +14,11 @@ CORE_SRC = \
 	$(SRC_DIR)/matrix.c \
 	$(SRC_DIR)/logging.c \
 	$(SRC_DIR)/config.c \
-	$(SRC_DIR)/fourier.c
+	$(SRC_DIR)/fourier.c \
+	$(SRC_DIR)/real_functions.c \
+	$(SRC_DIR)/int_functions.c \
+	$(SRC_DIR)/complex_functions.c
+
 
 CORE_OBJ = $(CORE_SRC:.c=.o)
 
