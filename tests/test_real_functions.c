@@ -1,4 +1,4 @@
-#define DEBUG
+// #define DEBUG
 #include "../include/config.h"
 #include "../include/real_functions.h"
 #include "acutest.h"
@@ -176,13 +176,8 @@ void test_rfn_tan(void)
 }
 
 TEST_LIST = {
-    { "test_rfn_cos", test_rfn_cos },
-    { "test_rfn_cotan", test_rfn_cotan },
-    { "test_rfn_exp", test_rfn_exp },
-    { "test_rfn_mod", test_rfn_mod },
-    { "test_rfn_sin", test_rfn_sin },
-    { "test_rfn_pow_i", test_rfn_pow_i },
-    { "test_rfn_tan", test_rfn_tan },
-    //
-    { NULL, NULL },
+    { "test_rfn_cos", test_rfn_cos },     { "test_rfn_cotan", test_rfn_cotan },
+    { "test_rfn_exp", test_rfn_exp },     { "test_rfn_mod", test_rfn_mod },
+    { "test_rfn_pow_i", test_rfn_pow_i }, { "test_rfn_sin", test_rfn_sin },
+    { "test_rfn_tan", test_rfn_tan },     { NULL, NULL },
 };
