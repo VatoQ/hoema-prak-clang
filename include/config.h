@@ -10,8 +10,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// #define DEBUG
-
 #ifdef DEBUG
 #define DEBUG_CODE(code)                                                       \
     do                                                                         \
@@ -60,17 +58,11 @@
 
 #define MAX(a, b) (a > b) ? a : b
 
-#ifndef int_t
-#define int_t long
-#endif
+#define EPS (sizeof(real_t) < 8 ? 1e-4 : 1e-8)
 
-#ifndef real_t
-#define real_t double
-#endif
-
-#ifndef complex_t
-#define complex_t complex double
-#endif
+typedef long int_t;
+typedef double real_t;
+typedef complex double complex_t;
 
 #define PI 3.14159265358979323846
 
