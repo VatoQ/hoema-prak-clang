@@ -129,6 +129,11 @@ void test_rfn_pow_i(void)
             TEST_CHECK(fabs(f_x_actual - f_x_expected) < EPS);
         }
     }
+
+    real_t nan = rfn_pow_i(0, -1);
+    DEBUG_PRINT("\n0^{-1} = %f", nan);
+
+    TEST_CHECK(nan == ieee_nan());
 }
 
 void test_rfn_sin(void)
