@@ -1239,7 +1239,7 @@ int Matrix_sub(Matrix* target, const Matrix* M)
     return MATRIX_SUCCESS;
 }
 
-static void _scale_int(Matrix* target, const complex real_t lambda)
+static void _scale_int(Matrix* target, const complex_t lambda)
 {
     const size_t N        = target->m * target->n;
     const size_t lambda_w = round(creal(lambda));
@@ -1250,7 +1250,7 @@ static void _scale_int(Matrix* target, const complex real_t lambda)
     }
 }
 
-static void _scale_real(Matrix* target, const complex real_t lambda)
+static void _scale_real(Matrix* target, const complex_t lambda)
 {
     const size_t N        = target->m * target->n;
     const double lambda_w = creal(lambda);
@@ -1261,7 +1261,7 @@ static void _scale_real(Matrix* target, const complex real_t lambda)
     }
 }
 
-static void _scale_cmpl(Matrix* target, const complex real_t lambda)
+static void _scale_cmpl(Matrix* target, const complex_t lambda)
 {
     const size_t N = target->m * target->n;
     ACCESS_VOID(real_t, target_values, target->values);
@@ -1272,13 +1272,13 @@ static void _scale_cmpl(Matrix* target, const complex real_t lambda)
 }
 
 static void (*_scale_units[TYPE_COUNT])(Matrix* target,
-                                        const complex real_t lambda) = {
+                                        const complex_t lambda) = {
     [Int]     = _scale_int,
     [Real]    = _scale_real,
     [Complex] = _scale_cmpl,
 };
 
-void Matrix_scale(Matrix* target, const complex real_t lambda)
+void Matrix_scale(Matrix* target, const complex_t lambda)
 {
     const size_t N = target->m * target->n;
     _scale_units[target->dt](target, lambda);
