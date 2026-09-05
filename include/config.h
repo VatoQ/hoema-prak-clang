@@ -1,5 +1,5 @@
-#ifndef CONFIG_H
-#define CONFIG_H
+#ifndef __CONFIG_H__
+#define __CONFIG_H__
 
 // Macros that may be overwritten in the project can be defined here.
 
@@ -110,4 +110,4 @@ typedef enum
 
 int get_limit(void* target, DataType dt, LimitType lt);
 
-#endif // CONFIG_H
+#endif // __CONFIG_H__

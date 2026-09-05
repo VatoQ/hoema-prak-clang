@@ -1,5 +1,5 @@
-#ifndef MATH_LOG_H
-#define MATH_LOG_H
+#ifndef __LOGGING_H__
+#define __LOGGING_H__
 
 #include "config.h"
 #include <stdbool.h>
@@ -32,4 +32,4 @@ void Log_log(const char* msg, RecordType rt);
 LogVerbosity Log_get_verbosity(void);
 bool Log_info_threshold(const size_t count, const size_t object_size);
 
-#endif // MATH_LOG_H
+#endif // __LOGGING_H__
