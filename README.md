@@ -1,7 +1,7 @@
 # Numerical Math Library — C core, plus a small Python API
 
 This repository began as a compact, self-contained implementation of
-matrix, vector and numerical routines written in plain ISO C. Over time
+matrix, vector and numerical routines written in C. Over time
 I added tooling, tests and a small Python API and the repository's
 purpose shifted from being a collection of university assignment
 solutions to a general-purpose learning and experimentation workspace.
