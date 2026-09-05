@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-static size_t MAX_STEP = 7;
+static size_t MAX_STEP = 8;
 
 real_t rfn_abs(real_t x)
 {
@@ -57,7 +57,7 @@ real_t rfn_exp(real_t x)
 {
     real_t sum;
 
-    for (size_t k = 0; k < 10; k++)
+    for (size_t k = 0; k < 20; k++)
     {
         sum += rfn_pow_i(x, k) / ifn_factorial(k);
     }
@@ -70,7 +70,7 @@ real_t rfn_mod(real_t a, real_t m)
 
     if (a > 0 && m > 0)
     {
-        while (k + m < a)
+        while (k + m <= a)
         {
             k += m;
         }
@@ -78,7 +78,7 @@ real_t rfn_mod(real_t a, real_t m)
     }
     if (a < 0 && m < 0)
     {
-        while (k + m > a)
+        while (k + m >= a)
         {
             k += m;
         }
@@ -86,7 +86,7 @@ real_t rfn_mod(real_t a, real_t m)
     }
     if (a < 0 && m > 0)
     {
-        while (k - m > a)
+        while (k - m >= a)
         {
             k -= m;
         }
@@ -94,7 +94,7 @@ real_t rfn_mod(real_t a, real_t m)
     }
     if (a > 0 && m < 0)
     {
-        while (k - m < a)
+        while (k - m <= a)
         {
             k -= m;
         }
@@ -107,7 +107,7 @@ real_t rfn_pow_i(real_t x, int_t n)
 {
     if (n < 0 && rfn_abs(x) < EPS) // prevent division by zero in the n < 0 case
     {
-        return 0;
+        return ieee_nan();
     }
     if (n < 0)
     {

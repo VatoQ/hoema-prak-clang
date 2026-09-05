@@ -110,4 +110,6 @@ typedef enum
 
 int get_limit(void* target, DataType dt, LimitType lt);
 
+real_t ieee_nan(void);
+
 #endif // __CONFIG_H__

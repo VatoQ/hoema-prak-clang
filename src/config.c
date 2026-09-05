@@ -3,6 +3,8 @@
 #include <limits.h>
 #include <math.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <string.h>
 
 size_t detect_L3_cache_size(void)
 {
@@ -197,4 +199,21 @@ int get_limit(void* target, DataType dt, LimitType lt)
         }
     }
     return CONFIG_SUCCESS;
+}
+
+real_t ieee_nan(void)
+{
+    real_t x;
+    if (sizeof(real_t) == 4)
+    {
+        uint32_t bits = UINT32_C(0x7FC00000);
+
+        memcpy(&x, &bits, sizeof x);
+    }
+    else if (sizeof(real_t) == 8)
+    {
+        uint64_t bits = UINT64_C(0x7FF8000000000000);
+        memcpy(&x, &bits, sizeof x);
+    }
+    return x;
 }
