@@ -1,4 +1,4 @@
-#define DEBUG
+// #define DEBUG
 #include "../include/config.h"
 #include "../include/real_functions.h"
 #include "acutest.h"
